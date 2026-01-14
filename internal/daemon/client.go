@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -62,7 +63,7 @@ func (c *Client) Ping() error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }
@@ -79,7 +80,7 @@ func (c *Client) Create(opts puck.CreateOptions) (*store.Puck, error) {
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var p store.Puck
@@ -96,7 +97,7 @@ func (c *Client) List() ([]*store.Puck, error) {
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var pucks []*store.Puck
@@ -114,7 +115,7 @@ func (c *Client) Get(name string) (*store.Puck, error) {
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var p store.Puck
@@ -132,7 +133,7 @@ func (c *Client) Start(name string) error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }
@@ -145,7 +146,7 @@ func (c *Client) Stop(name string) error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }
@@ -158,7 +159,7 @@ func (c *Client) Destroy(name string, force bool) error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }
@@ -171,7 +172,7 @@ func (c *Client) DestroyAll(force bool) ([]string, error) {
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var destroyed []string
@@ -193,7 +194,7 @@ func (c *Client) SnapshotCreate(puckName, snapshotName string, leaveRunning bool
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var snapshot store.Snapshot
@@ -214,7 +215,7 @@ func (c *Client) SnapshotRestore(puckName, snapshotName string) error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }
@@ -227,7 +228,7 @@ func (c *Client) SnapshotList(puckName string) ([]*store.Snapshot, error) {
 		return nil, err
 	}
 	if !resp.Success {
-		return nil, fmt.Errorf(resp.Error)
+		return nil, errors.New(resp.Error)
 	}
 
 	var snapshots []*store.Snapshot
@@ -248,7 +249,7 @@ func (c *Client) SnapshotDelete(puckName, snapshotName string) error {
 		return err
 	}
 	if !resp.Success {
-		return fmt.Errorf(resp.Error)
+		return errors.New(resp.Error)
 	}
 	return nil
 }

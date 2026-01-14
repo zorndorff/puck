@@ -22,13 +22,13 @@ type CreateOptions struct {
 
 // Manager handles puck lifecycle operations
 type Manager struct {
-	podman *podman.Client
+	podman podman.ContainerClient
 	store  *store.DB
 	cfg    *config.Config
 }
 
 // NewManager creates a new puck manager
-func NewManager(cfg *config.Config, pc *podman.Client, db *store.DB) *Manager {
+func NewManager(cfg *config.Config, pc podman.ContainerClient, db *store.DB) *Manager {
 	return &Manager{
 		podman: pc,
 		store:  db,
