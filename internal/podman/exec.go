@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+
+	"golang.org/x/term"
 )
 
 // ExecOptions contains options for executing a command in a container
@@ -46,8 +48,8 @@ func (c *Client) Exec(ctx context.Context, containerID string, opts ExecOptions)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Set up TTY if needed
-	if opts.TTY {
+	// Set up TTY if needed and stdin is actually a terminal
+	if opts.TTY && term.IsTerminal(int(os.Stdin.Fd())) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setctty: true,
 			Setsid:  true,
