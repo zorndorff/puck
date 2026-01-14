@@ -203,6 +203,8 @@ func (d *Daemon) handleRequest(ctx context.Context, req *Request) Response {
 		return d.handleStop(ctx, req.Data)
 	case "destroy":
 		return d.handleDestroy(ctx, req.Data)
+	case "destroy-all":
+		return d.handleDestroyAll(ctx, req.Data)
 	case "ping":
 		return Response{Success: true}
 	default:
@@ -321,6 +323,33 @@ func (d *Daemon) handleDestroy(ctx context.Context, data json.RawMessage) Respon
 	}
 
 	return Response{Success: true}
+}
+
+func (d *Daemon) handleDestroyAll(ctx context.Context, data json.RawMessage) Response {
+	var params struct {
+		Force bool `json:"force"`
+	}
+	if err := json.Unmarshal(data, &params); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	destroyed, err := d.manager.DestroyAll(ctx, params.Force)
+
+	// Remove routes for all destroyed sprites
+	for _, name := range destroyed {
+		if err := d.router.RemoveRoute(name); err != nil {
+			log.Warn("Failed to remove route for sprite", "name", name, "error", err)
+		}
+	}
+
+	if err != nil {
+		// Return partial success with list of destroyed sprites
+		respData, _ := json.Marshal(destroyed)
+		return Response{Success: false, Error: err.Error(), Data: respData}
+	}
+
+	respData, _ := json.Marshal(destroyed)
+	return Response{Success: true, Data: respData}
 }
 
 // Manager returns the sprite manager (for console command which needs direct access)

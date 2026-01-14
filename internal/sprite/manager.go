@@ -197,8 +197,19 @@ func (m *Manager) Destroy(ctx context.Context, name string, force bool) error {
 		return err
 	}
 
-	// Remove container
+	// Stop container first if running and not forcing
+	if !force {
+		running, _ := m.podman.IsRunning(ctx, s.ID)
+		if running {
+			if err := m.podman.StopContainer(ctx, s.ID); err != nil {
+				return fmt.Errorf("stopping container: %w (use --force to override)", err)
+			}
+		}
+	}
+
+	// Remove container (force if requested)
 	if err := m.podman.RemoveContainer(ctx, s.ID, force); err != nil {
+		// Try to remove even if container doesn't exist
 		if !force {
 			return fmt.Errorf("removing container: %w", err)
 		}
@@ -206,8 +217,8 @@ func (m *Manager) Destroy(ctx context.Context, name string, force bool) error {
 	}
 
 	// Remove volume directory
-	if err := os.RemoveAll(s.VolumeDir); err != nil {
-		return fmt.Errorf("removing volume directory: %w", err)
+	if s.VolumeDir != "" {
+		os.RemoveAll(s.VolumeDir) // Ignore errors - may not exist
 	}
 
 	// Remove from database
@@ -216,6 +227,31 @@ func (m *Manager) Destroy(ctx context.Context, name string, force bool) error {
 	}
 
 	return nil
+}
+
+// DestroyAll removes all sprites
+func (m *Manager) DestroyAll(ctx context.Context, force bool) ([]string, error) {
+	sprites, err := m.store.ListSprites(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var destroyed []string
+	var errors []string
+
+	for _, s := range sprites {
+		if err := m.Destroy(ctx, s.Name, force); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", s.Name, err))
+		} else {
+			destroyed = append(destroyed, s.Name)
+		}
+	}
+
+	if len(errors) > 0 {
+		return destroyed, fmt.Errorf("failed to destroy some sprites: %v", errors)
+	}
+
+	return destroyed, nil
 }
 
 // Console opens a shell in a sprite

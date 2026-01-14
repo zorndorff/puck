@@ -162,3 +162,21 @@ func (c *Client) Destroy(name string, force bool) error {
 	}
 	return nil
 }
+
+// DestroyAll removes all sprites
+func (c *Client) DestroyAll(force bool) ([]string, error) {
+	data, _ := json.Marshal(map[string]interface{}{"force": force})
+	resp, err := c.send(&Request{Action: "destroy-all", Data: data})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf(resp.Error)
+	}
+
+	var destroyed []string
+	if err := json.Unmarshal(resp.Data, &destroyed); err != nil {
+		return nil, err
+	}
+	return destroyed, nil
+}
