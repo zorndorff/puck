@@ -24,15 +24,15 @@ Type "./puck daemon status"
 Enter
 Sleep 1500ms
 
-Type "# Create a new sprite"
+Type "# Create a new puck"
 Enter
 Sleep 300ms
 
-Type "./puck create demo-sprite --image fedora:latest"
+Type "./puck create demo-puck --image fedora:latest"
 Enter
 Sleep 4s
 
-Type "# List all sprites"
+Type "# List all pucks"
 Enter
 Sleep 300ms
 
@@ -40,11 +40,11 @@ Type "./puck list"
 Enter
 Sleep 2s
 
-Type "# Stop the sprite"
+Type "# Stop the puck"
 Enter
 Sleep 300ms
 
-Type "./puck stop demo-sprite"
+Type "./puck stop demo-puck"
 Enter
 Sleep 2s
 
@@ -60,7 +60,7 @@ Type "# Start it back up"
 Enter
 Sleep 300ms
 
-Type "./puck start demo-sprite"
+Type "./puck start demo-puck"
 Enter
 Sleep 2s
 
@@ -72,10 +72,10 @@ Type "# Clean up"
 Enter
 Sleep 300ms
 
-Type "./puck destroy demo-sprite --force"
+Type "./puck destroy demo-puck --force"
 Enter
 Sleep 2s
 
-Type "# Done! Sprites are persistent containers made easy."
+Type "# Done! Pucks are persistent containers made easy."
 Enter
 Sleep 2s

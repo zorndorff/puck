@@ -7,14 +7,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/sandwich-labs/puck/internal/config"
 	"github.com/sandwich-labs/puck/internal/podman"
-	"github.com/sandwich-labs/puck/internal/sprite"
+	"github.com/sandwich-labs/puck/internal/puck"
 	"github.com/sandwich-labs/puck/internal/store"
 )
 
 var consoleCmd = &cobra.Command{
 	Use:   "console [name]",
-	Short: "Open a shell in a sprite",
-	Long:  `Connect to a sprite and open an interactive shell.`,
+	Short: "Open a shell in a puck",
+	Long:  `Connect to a puck and open an interactive shell.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runConsole,
 }
@@ -47,7 +47,7 @@ func runConsole(cmd *cobra.Command, args []string) error {
 	}
 	defer db.Close()
 
-	mgr := sprite.NewManager(cfg, pc, db)
+	mgr := puck.NewManager(cfg, pc, db)
 
 	return mgr.Console(ctx, name, consoleShell)
 }

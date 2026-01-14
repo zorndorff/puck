@@ -9,8 +9,8 @@ import (
 
 var startCmd = &cobra.Command{
 	Use:   "start [name]",
-	Short: "Start a stopped sprite",
-	Long:  `Start a sprite that was previously stopped.`,
+	Short: "Start a stopped puck",
+	Long:  `Start a puck that was previously stopped.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runStart,
 }
@@ -31,6 +31,6 @@ func runStart(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Started sprite '%s'\n", name)
+	fmt.Printf("Started puck '%s'\n", name)
 	return nil
 }

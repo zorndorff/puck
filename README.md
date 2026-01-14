@@ -4,7 +4,7 @@
 
 ![Puck Demo](demos/demo.gif)
 
-Puck creates and manages stateful containers ("sprites") that persist across sessions. Unlike traditional containers designed for stateless workloads, sprites maintain their state, installed packages, and configurations—just like a real machine.
+Puck creates and manages stateful containers ("pucks") that persist across sessions. Unlike traditional containers designed for stateless workloads, pucks maintain their state, installed packages, and configurations—just like a real machine.
 
 ## Why Puck?
 
@@ -13,16 +13,16 @@ Traditional containers are ephemeral by design. Every restart means reinstalling
 Puck brings that philosophy to your local machine:
 
 - **Dev is Prod**: Your development environment persists and evolves with your project
-- **Stateful by Default**: Sprites act like actual computers with durable storage
-- **Checkpoint/Restore**: Freeze and resume container state instantly with CRIU
-- **HTTP Routing**: Access all sprites through a unified localhost endpoint
+- **Stateful by Default**: Pucks act like actual computers with durable storage
+- **Checkpoint/Restore**: Freeze and resume puck state instantly with CRIU
+- **HTTP Routing**: Access all pucks through a unified localhost endpoint
 - **Agent-Friendly**: Perfect for AI coding agents that need persistent environments
 
 ## Features
 
-- **Persistent Containers**: Sprites maintain state across restarts with mounted volumes for `/home`, `/etc`, and `/var`
-- **Interactive Console**: Drop into any sprite with `puck console`
-- **HTTP Router**: Access sprites via `localhost:8080/<sprite-name>/`
+- **Persistent Containers**: Pucks maintain state across restarts with mounted volumes for `/home`, `/etc`, and `/var`
+- **Interactive Console**: Drop into any puck with `puck console`
+- **HTTP Router**: Access pucks via `localhost:8080/<puck-name>/`
 - **Checkpoint/Restore**: Save and restore complete container state including memory and TCP connections
 - **Auto-naming**: Memorable adjective-noun names like `fuzzy-penguin` when you don't specify one
 - **Rootless by Default**: Runs without elevated privileges using Podman
@@ -58,7 +58,7 @@ task install
 # Start the daemon (runs in background)
 puck daemon start &
 
-# Create your first sprite
+# Create your first puck
 puck create myapp
 
 # Get a shell inside
@@ -78,16 +78,16 @@ node --version  # Still installed!
 
 ## Commands
 
-### Sprite Management
+### Puck Management
 
 | Command | Description |
 |---------|-------------|
-| `puck create [name]` | Create a new sprite |
-| `puck list` | List all sprites |
+| `puck create [name]` | Create a new puck |
+| `puck list` | List all pucks |
 | `puck console <name>` | Open interactive shell |
-| `puck start <name>` | Start a stopped sprite |
-| `puck stop <name>` | Stop a running sprite |
-| `puck destroy <name>` | Delete a sprite permanently |
+| `puck start <name>` | Start a stopped puck |
+| `puck stop <name>` | Stop a running puck |
+| `puck destroy <name>` | Delete a puck permanently |
 
 ### Daemon Management
 
@@ -100,7 +100,7 @@ node --version  # Still installed!
 
 #### `puck create`
 
-Create a new persistent sprite container.
+Create a new persistent puck container.
 
 ```bash
 # Auto-generate a fun name
@@ -124,7 +124,7 @@ puck create webserver --image nginx --port 80:80
 
 ![Console Demo](demos/console-demo.gif)
 
-Open an interactive shell session inside a sprite.
+Open an interactive shell session inside a puck.
 
 ```bash
 puck console myapp
@@ -140,34 +140,34 @@ puck console myapp --shell /bin/zsh
 
 ![Lifecycle Demo](demos/lifecycle-demo.gif)
 
-Remove a sprite and its associated data.
+Remove a puck and its associated data.
 
 ```bash
-# Destroy a specific sprite
+# Destroy a specific puck
 puck destroy myapp
 
 # Force destroy without confirmation
 puck destroy myapp --force
 
-# Destroy all sprites
+# Destroy all pucks
 puck destroy --all
 ```
 
 **Flags:**
 - `-f, --force` - Skip confirmation
-- `--all` - Destroy all sprites
+- `--all` - Destroy all pucks
 
 ## HTTP Routing
 
-Puck includes a built-in HTTP router (powered by Caddy) that provides unified access to all sprites:
+Puck includes a built-in HTTP router (powered by Caddy) that provides unified access to all pucks:
 
 ```
-http://localhost:8080/           → Lists all sprites
+http://localhost:8080/           → Lists all pucks
 http://localhost:8080/myapp/     → Routes to myapp container
 http://localhost:8080/webserver/ → Routes to webserver container
 ```
 
-The router automatically strips the sprite name prefix and forwards requests to the container's mapped port.
+The router automatically strips the puck name prefix and forwards requests to the container's mapped port.
 
 ## Architecture
 
@@ -180,7 +180,7 @@ The router automatically strips the sprite name prefix and forwards requests to 
 ┌─────────────────────▼───────────────────────────────────┐
 │                    puckd Daemon                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  │
-│  │   Sprite    │  │    HTTP     │  │     SQLite      │  │
+│  │    Puck     │  │    HTTP     │  │     SQLite      │  │
 │  │   Manager   │  │   Router    │  │     Store       │  │
 │  └──────┬──────┘  └─────────────┘  └─────────────────┘  │
 └─────────┼───────────────────────────────────────────────┘
@@ -188,7 +188,7 @@ The router automatically strips the sprite name prefix and forwards requests to 
 ┌─────────▼───────────────────────────────────────────────┐
 │                    Podman Engine                        │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
-│  │  Sprite  │  │  Sprite  │  │  Sprite  │   ...        │
+│  │   Puck   │  │   Puck   │  │   Puck   │   ...        │
 │  │  (myapp) │  │  (web)   │  │  (api)   │              │
 │  └──────────┘  └──────────┘  └──────────┘              │
 └─────────────────────────────────────────────────────────┘
@@ -197,10 +197,10 @@ The router automatically strips the sprite name prefix and forwards requests to 
 ### Components
 
 - **puck CLI**: User-facing commands that communicate with the daemon
-- **puckd Daemon**: Background service managing sprite lifecycle and HTTP routing
-- **Sprite Manager**: Handles container creation, volume mounting, and state management
-- **HTTP Router**: Caddy-based reverse proxy for accessing sprites
-- **SQLite Store**: Metadata persistence for sprites and snapshots
+- **puckd Daemon**: Background service managing puck lifecycle and HTTP routing
+- **Puck Manager**: Handles container creation, volume mounting, and state management
+- **HTTP Router**: Caddy-based reverse proxy for accessing pucks
+- **SQLite Store**: Metadata persistence for pucks and snapshots
 - **Podman Engine**: Container runtime (rootless by default)
 
 ## Configuration
@@ -215,16 +215,16 @@ Puck looks for configuration in the following locations:
 ```yaml
 # ~/.config/puck/config.yaml
 
-# Base image for new sprites
+# Base image for new pucks
 default_image: fedora:latest
 
 # HTTP router port
 router_port: 8080
 
-# Auto-stop idle sprites after this duration
+# Auto-stop idle pucks after this duration
 idle_timeout: 15m
 
-# Data directory for sprites and snapshots
+# Data directory for pucks and snapshots
 data_dir: ~/.local/share/puck
 ```
 
@@ -244,8 +244,8 @@ Puck stores data in `~/.local/share/puck/`:
 ~/.local/share/puck/
 ├── puck.db              # SQLite database
 ├── puckd.sock           # Daemon Unix socket
-├── sprites/
-│   └── myapp/           # Per-sprite volumes
+├── pucks/
+│   └── myapp/           # Per-puck volumes
 │       ├── home/        # Persistent home directory
 │       ├── etc/         # System configuration
 │       └── var/         # Variable data
@@ -307,8 +307,8 @@ done
 - [ ] macOS support via Podman Machine
 - [ ] Windows support via WSL2/Podman
 - [ ] Tailscale Funnel integration for public URLs
-- [ ] Wake-on-request for idle sprites
-- [ ] Remote sprite synchronization
+- [ ] Wake-on-request for idle pucks
+- [ ] Remote puck synchronization
 - [ ] GUI dashboard
 
 ## Inspiration

@@ -10,8 +10,8 @@ import (
 var destroyCmd = &cobra.Command{
 	Use:     "destroy [name]",
 	Aliases: []string{"rm", "remove"},
-	Short:   "Destroy a sprite",
-	Long:    `Destroy a sprite and remove all its data. Use --all to destroy all sprites.`,
+	Short:   "Destroy a puck",
+	Long:    `Destroy a puck and remove all its data. Use --all to destroy all pucks.`,
 	Args:    cobra.MaximumNArgs(1),
 	RunE:    runDestroy,
 }
@@ -23,7 +23,7 @@ var (
 
 func init() {
 	destroyCmd.Flags().BoolVarP(&destroyForce, "force", "f", false, "force removal even if running")
-	destroyCmd.Flags().BoolVar(&destroyAll, "all", false, "destroy all sprites")
+	destroyCmd.Flags().BoolVar(&destroyAll, "all", false, "destroy all pucks")
 }
 
 func runDestroy(cmd *cobra.Command, args []string) error {
@@ -42,17 +42,17 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if len(destroyed) == 0 {
-			fmt.Println("No sprites to destroy")
+			fmt.Println("No pucks to destroy")
 		} else {
 			for _, name := range destroyed {
-				fmt.Printf("Destroyed sprite '%s'\n", name)
+				fmt.Printf("Destroyed puck '%s'\n", name)
 			}
 		}
 		return nil
 	}
 
 	if len(args) == 0 {
-		return fmt.Errorf("sprite name required (or use --all)")
+		return fmt.Errorf("puck name required (or use --all)")
 	}
 
 	name := args[0]
@@ -60,6 +60,6 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Destroyed sprite '%s'\n", name)
+	fmt.Printf("Destroyed puck '%s'\n", name)
 	return nil
 }

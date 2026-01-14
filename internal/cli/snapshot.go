@@ -12,26 +12,26 @@ import (
 
 var snapshotCmd = &cobra.Command{
 	Use:   "snapshot",
-	Short: "Manage sprite snapshots",
-	Long:  `Create, restore, and manage CRIU checkpoint snapshots of sprites.`,
+	Short: "Manage puck snapshots",
+	Long:  `Create, restore, and manage CRIU checkpoint snapshots of pucks.`,
 }
 
 var snapshotCreateCmd = &cobra.Command{
-	Use:   "create <sprite> <name>",
-	Short: "Create a snapshot of a sprite",
-	Long: `Create a CRIU checkpoint snapshot of a running sprite.
+	Use:   "create <puck> <name>",
+	Short: "Create a snapshot of a puck",
+	Long: `Create a CRIU checkpoint snapshot of a running puck.
 
 This captures the complete state of the container including memory, processes,
 and network connections. The snapshot can later be restored to bring the
-sprite back to this exact state.`,
+puck back to this exact state.`,
 	Args: cobra.ExactArgs(2),
 	RunE: runSnapshotCreate,
 }
 
 var snapshotRestoreCmd = &cobra.Command{
-	Use:   "restore <sprite> <name>",
-	Short: "Restore a sprite from a snapshot",
-	Long: `Restore a sprite to a previously saved snapshot state.
+	Use:   "restore <puck> <name>",
+	Short: "Restore a puck from a snapshot",
+	Long: `Restore a puck to a previously saved snapshot state.
 
 This replaces the current container with one restored from the checkpoint,
 including all memory state, running processes, and network connections.`,
@@ -40,15 +40,15 @@ including all memory state, running processes, and network connections.`,
 }
 
 var snapshotListCmd = &cobra.Command{
-	Use:     "list <sprite>",
+	Use:     "list <puck>",
 	Aliases: []string{"ls"},
-	Short:   "List snapshots for a sprite",
+	Short:   "List snapshots for a puck",
 	Args:    cobra.ExactArgs(1),
 	RunE:    runSnapshotList,
 }
 
 var snapshotDeleteCmd = &cobra.Command{
-	Use:     "delete <sprite> <name>",
+	Use:     "delete <puck> <name>",
 	Aliases: []string{"rm"},
 	Short:   "Delete a snapshot",
 	Args:    cobra.ExactArgs(2),
@@ -60,7 +60,7 @@ var (
 )
 
 func init() {
-	snapshotCreateCmd.Flags().BoolVar(&snapshotLeaveRunning, "leave-running", false, "keep sprite running after snapshot")
+	snapshotCreateCmd.Flags().BoolVar(&snapshotLeaveRunning, "leave-running", false, "keep puck running after snapshot")
 
 	snapshotCmd.AddCommand(snapshotCreateCmd)
 	snapshotCmd.AddCommand(snapshotRestoreCmd)
@@ -69,7 +69,7 @@ func init() {
 }
 
 func runSnapshotCreate(cmd *cobra.Command, args []string) error {
-	spriteName := args[0]
+	puckName := args[0]
 	snapshotName := args[1]
 
 	client, err := daemon.NewClient()
@@ -81,23 +81,23 @@ func runSnapshotCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("daemon not running: %w\nStart with: puck daemon start", err)
 	}
 
-	fmt.Printf("Creating snapshot '%s' of sprite '%s'...\n", snapshotName, spriteName)
+	fmt.Printf("Creating snapshot '%s' of puck '%s'...\n", snapshotName, puckName)
 
-	snapshot, err := client.SnapshotCreate(spriteName, snapshotName, snapshotLeaveRunning)
+	snapshot, err := client.SnapshotCreate(puckName, snapshotName, snapshotLeaveRunning)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Snapshot created: %s (%s)\n", snapshot.Name, humanize.Bytes(uint64(snapshot.SizeBytes)))
 	if !snapshotLeaveRunning {
-		fmt.Println("Sprite is now checkpointed (stopped). Use 'puck snapshot restore' to restore it.")
+		fmt.Println("Puck is now checkpointed (stopped). Use 'puck snapshot restore' to restore it.")
 	}
 
 	return nil
 }
 
 func runSnapshotRestore(cmd *cobra.Command, args []string) error {
-	spriteName := args[0]
+	puckName := args[0]
 	snapshotName := args[1]
 
 	client, err := daemon.NewClient()
@@ -109,18 +109,18 @@ func runSnapshotRestore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("daemon not running: %w\nStart with: puck daemon start", err)
 	}
 
-	fmt.Printf("Restoring sprite '%s' from snapshot '%s'...\n", spriteName, snapshotName)
+	fmt.Printf("Restoring puck '%s' from snapshot '%s'...\n", puckName, snapshotName)
 
-	if err := client.SnapshotRestore(spriteName, snapshotName); err != nil {
+	if err := client.SnapshotRestore(puckName, snapshotName); err != nil {
 		return err
 	}
 
-	fmt.Println("Sprite restored and running")
+	fmt.Println("Puck restored and running")
 	return nil
 }
 
 func runSnapshotList(cmd *cobra.Command, args []string) error {
-	spriteName := args[0]
+	puckName := args[0]
 
 	client, err := daemon.NewClient()
 	if err != nil {
@@ -131,13 +131,13 @@ func runSnapshotList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("daemon not running: %w\nStart with: puck daemon start", err)
 	}
 
-	snapshots, err := client.SnapshotList(spriteName)
+	snapshots, err := client.SnapshotList(puckName)
 	if err != nil {
 		return err
 	}
 
 	if len(snapshots) == 0 {
-		fmt.Printf("No snapshots for sprite '%s'\n", spriteName)
+		fmt.Printf("No snapshots for puck '%s'\n", puckName)
 		return nil
 	}
 
@@ -156,7 +156,7 @@ func runSnapshotList(cmd *cobra.Command, args []string) error {
 }
 
 func runSnapshotDelete(cmd *cobra.Command, args []string) error {
-	spriteName := args[0]
+	puckName := args[0]
 	snapshotName := args[1]
 
 	client, err := daemon.NewClient()
@@ -168,10 +168,10 @@ func runSnapshotDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("daemon not running: %w\nStart with: puck daemon start", err)
 	}
 
-	if err := client.SnapshotDelete(spriteName, snapshotName); err != nil {
+	if err := client.SnapshotDelete(puckName, snapshotName); err != nil {
 		return err
 	}
 
-	fmt.Printf("Deleted snapshot '%s' from sprite '%s'\n", snapshotName, spriteName)
+	fmt.Printf("Deleted snapshot '%s' from puck '%s'\n", snapshotName, puckName)
 	return nil
 }

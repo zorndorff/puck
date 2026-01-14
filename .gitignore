@@ -1,6 +1,6 @@
-# Binaries
-puck
-puckd
+# Binaries (at root level)
+/puck
+/puckd
 
 # IDE
 .idea/

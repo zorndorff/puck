@@ -9,8 +9,8 @@ import (
 
 var stopCmd = &cobra.Command{
 	Use:   "stop [name]",
-	Short: "Stop a running sprite",
-	Long:  `Stop a running sprite.`,
+	Short: "Stop a running puck",
+	Long:  `Stop a running puck.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runStop,
 }
@@ -31,6 +31,6 @@ func runStop(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Stopped sprite '%s'\n", name)
+	fmt.Printf("Stopped puck '%s'\n", name)
 	return nil
 }

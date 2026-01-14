@@ -18,10 +18,10 @@ import (
 	_ "github.com/tailscale/caddy-tailscale"
 )
 
-// Router manages HTTP routing for sprites via Caddy
+// Router manages HTTP routing for pucks via Caddy
 type Router struct {
 	mu       sync.RWMutex
-	routes   map[string]routeInfo // sprite name -> route info
+	routes   map[string]routeInfo // puck name -> route info
 	port     int
 	running  bool
 	domain   string // e.g., "localhost"
@@ -92,22 +92,22 @@ func (r *Router) Stop() error {
 	return nil
 }
 
-// AddRoute adds or updates a route for a sprite
-func (r *Router) AddRoute(spriteName string, containerIP string, containerPort int) error {
+// AddRoute adds or updates a route for a puck
+func (r *Router) AddRoute(puckName string, containerIP string, containerPort int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.routes[spriteName] = routeInfo{IP: containerIP, Port: containerPort}
+	r.routes[puckName] = routeInfo{IP: containerIP, Port: containerPort}
 
 	return r.reload()
 }
 
-// RemoveRoute removes a route for a sprite
-func (r *Router) RemoveRoute(spriteName string) error {
+// RemoveRoute removes a route for a puck
+func (r *Router) RemoveRoute(puckName string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	delete(r.routes, spriteName)
+	delete(r.routes, puckName)
 
 	return r.reload()
 }
@@ -144,11 +144,11 @@ func (r *Router) reload() error {
 }
 
 // buildConfig creates the Caddy configuration
-// Uses path-based routing: /sprite-name/* -> sprite backend
+// Uses path-based routing: /puck-name/* -> puck backend
 func (r *Router) buildConfig() map[string]interface{} {
 	routes := make([]map[string]interface{}, 0)
 
-	// Add routes for each sprite using path-based routing
+	// Add routes for each puck using path-based routing
 	for name, info := range r.routes {
 		target := fmt.Sprintf("%s:%d", info.IP, info.Port)
 		pathPrefix := fmt.Sprintf("/%s", name)
@@ -173,13 +173,13 @@ func (r *Router) buildConfig() map[string]interface{} {
 		routes = append(routes, route)
 	}
 
-	// Add a root route listing available sprites
-	spriteList := "Available sprites:\n"
+	// Add a root route listing available pucks
+	puckList := "Available pucks:\n"
 	for name := range r.routes {
-		spriteList += fmt.Sprintf("  /%s\n", name)
+		puckList += fmt.Sprintf("  /%s\n", name)
 	}
 	if len(r.routes) == 0 {
-		spriteList = "No sprites found. Create one with: puck create <name>"
+		puckList = "No pucks found. Create one with: puck create <name>"
 	}
 
 	defaultRoute := map[string]interface{}{
@@ -187,7 +187,7 @@ func (r *Router) buildConfig() map[string]interface{} {
 			{
 				"handler":     "static_response",
 				"status_code": "200",
-				"body":        spriteList,
+				"body":        puckList,
 				"headers": map[string][]string{
 					"Content-Type": {"text/plain; charset=utf-8"},
 				},

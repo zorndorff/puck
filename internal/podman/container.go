@@ -45,8 +45,8 @@ func (c *Client) CreateContainer(ctx context.Context, opts CreateContainerOption
 
 	// Add puck management labels
 	spec.Labels = map[string]string{
-		"managed-by":  "puck",
-		"puck.sprite": opts.Name,
+		"managed-by": "puck",
+		"puck.name":  opts.Name,
 	}
 	for k, v := range opts.Labels {
 		spec.Labels[k] = v

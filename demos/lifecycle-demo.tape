@@ -12,7 +12,7 @@ Set Padding 20
 Set Framerate 30
 Set TypingSpeed 50ms
 
-Type "# Create two sprites"
+Type "# Create two pucks"
 Enter
 Sleep 300ms
 
@@ -24,7 +24,7 @@ Type "./puck create app2"
 Enter
 Sleep 4s
 
-Type "# View all sprites"
+Type "# View all pucks"
 Enter
 Sleep 300ms
 
@@ -32,7 +32,7 @@ Type "./puck list"
 Enter
 Sleep 2s
 
-Type "# Stop one sprite"
+Type "# Stop one puck"
 Enter
 Sleep 300ms
 
@@ -56,7 +56,7 @@ Type "./puck list"
 Enter
 Sleep 1500ms
 
-Type "# Destroy all sprites at once"
+Type "# Destroy all pucks at once"
 Enter
 Sleep 300ms
 

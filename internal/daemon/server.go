@@ -13,7 +13,7 @@ import (
 	"github.com/sandwich-labs/puck/internal/config"
 	"github.com/sandwich-labs/puck/internal/network"
 	"github.com/sandwich-labs/puck/internal/podman"
-	"github.com/sandwich-labs/puck/internal/sprite"
+	"github.com/sandwich-labs/puck/internal/puck"
 	"github.com/sandwich-labs/puck/internal/store"
 )
 
@@ -22,7 +22,7 @@ type Daemon struct {
 	cfg     *config.Config
 	podman  *podman.Client
 	store   *store.DB
-	manager *sprite.Manager
+	manager *puck.Manager
 	router  *network.Router
 
 	listener net.Listener
@@ -48,7 +48,7 @@ func New() (*Daemon, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	mgr := sprite.NewManager(cfg, pc, db)
+	mgr := puck.NewManager(cfg, pc, db)
 
 	// Create router for HTTP routing
 	router := network.NewRouter(cfg.RouterPort, cfg.RouterDomain)
@@ -101,7 +101,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		log.Info("HTTP router started", "port", d.cfg.RouterPort, "domain", d.cfg.RouterDomain)
 	}
 
-	// Sync existing sprites to router
+	// Sync existing pucks to router
 	d.syncRoutesToRouter(ctx)
 
 	// Accept connections
@@ -142,19 +142,19 @@ func (d *Daemon) Shutdown() {
 	}
 }
 
-// syncRoutesToRouter adds routes for all running sprites
+// syncRoutesToRouter adds routes for all running pucks
 func (d *Daemon) syncRoutesToRouter(ctx context.Context) {
-	sprites, err := d.manager.List(ctx)
+	pucks, err := d.manager.List(ctx)
 	if err != nil {
-		log.Warn("Failed to list sprites for router sync", "error", err)
+		log.Warn("Failed to list pucks for router sync", "error", err)
 		return
 	}
 
-	for _, s := range sprites {
-		if s.Status == store.StatusRunning && s.HostPort > 0 {
+	for _, p := range pucks {
+		if p.Status == store.StatusRunning && p.HostPort > 0 {
 			// Route to localhost with the mapped host port
-			if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
-				log.Warn("Failed to add route", "sprite", s.Name, "error", err)
+			if err := d.router.AddRoute(p.Name, "127.0.0.1", p.HostPort); err != nil {
+				log.Warn("Failed to add route", "puck", p.Name, "error", err)
 			}
 		}
 	}
@@ -221,34 +221,34 @@ func (d *Daemon) handleRequest(ctx context.Context, req *Request) Response {
 }
 
 func (d *Daemon) handleCreate(ctx context.Context, data json.RawMessage) Response {
-	var opts sprite.CreateOptions
+	var opts puck.CreateOptions
 	if err := json.Unmarshal(data, &opts); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	s, err := d.manager.Create(ctx, opts)
+	p, err := d.manager.Create(ctx, opts)
 	if err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Add route for the new sprite using its host port
-	if s.HostPort > 0 {
-		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
-			log.Warn("Failed to add route for sprite", "name", s.Name, "error", err)
+	// Add route for the new puck using its host port
+	if p.HostPort > 0 {
+		if err := d.router.AddRoute(p.Name, "127.0.0.1", p.HostPort); err != nil {
+			log.Warn("Failed to add route for puck", "name", p.Name, "error", err)
 		}
 	}
 
-	respData, _ := json.Marshal(s)
+	respData, _ := json.Marshal(p)
 	return Response{Success: true, Data: respData}
 }
 
 func (d *Daemon) handleList(ctx context.Context) Response {
-	sprites, err := d.manager.List(ctx)
+	pucks, err := d.manager.List(ctx)
 	if err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	respData, _ := json.Marshal(sprites)
+	respData, _ := json.Marshal(pucks)
 	return Response{Success: true, Data: respData}
 }
 
@@ -260,12 +260,12 @@ func (d *Daemon) handleGet(ctx context.Context, data json.RawMessage) Response {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	s, err := d.manager.Get(ctx, params.Name)
+	p, err := d.manager.Get(ctx, params.Name)
 	if err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	respData, _ := json.Marshal(s)
+	respData, _ := json.Marshal(p)
 	return Response{Success: true, Data: respData}
 }
 
@@ -281,11 +281,11 @@ func (d *Daemon) handleStart(ctx context.Context, data json.RawMessage) Response
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Add route for started sprite using its host port
-	s, err := d.manager.Get(ctx, params.Name)
-	if err == nil && s.HostPort > 0 {
-		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
-			log.Warn("Failed to add route for sprite", "name", s.Name, "error", err)
+	// Add route for started puck using its host port
+	p, err := d.manager.Get(ctx, params.Name)
+	if err == nil && p.HostPort > 0 {
+		if err := d.router.AddRoute(p.Name, "127.0.0.1", p.HostPort); err != nil {
+			log.Warn("Failed to add route for puck", "name", p.Name, "error", err)
 		}
 	}
 
@@ -304,9 +304,9 @@ func (d *Daemon) handleStop(ctx context.Context, data json.RawMessage) Response 
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Remove route for stopped sprite
+	// Remove route for stopped puck
 	if err := d.router.RemoveRoute(params.Name); err != nil {
-		log.Warn("Failed to remove route for sprite", "name", params.Name, "error", err)
+		log.Warn("Failed to remove route for puck", "name", params.Name, "error", err)
 	}
 
 	return Response{Success: true}
@@ -325,9 +325,9 @@ func (d *Daemon) handleDestroy(ctx context.Context, data json.RawMessage) Respon
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Remove route for destroyed sprite
+	// Remove route for destroyed puck
 	if err := d.router.RemoveRoute(params.Name); err != nil {
-		log.Warn("Failed to remove route for sprite", "name", params.Name, "error", err)
+		log.Warn("Failed to remove route for puck", "name", params.Name, "error", err)
 	}
 
 	return Response{Success: true}
@@ -343,15 +343,15 @@ func (d *Daemon) handleDestroyAll(ctx context.Context, data json.RawMessage) Res
 
 	destroyed, err := d.manager.DestroyAll(ctx, params.Force)
 
-	// Remove routes for all destroyed sprites
+	// Remove routes for all destroyed pucks
 	for _, name := range destroyed {
 		if err := d.router.RemoveRoute(name); err != nil {
-			log.Warn("Failed to remove route for sprite", "name", name, "error", err)
+			log.Warn("Failed to remove route for puck", "name", name, "error", err)
 		}
 	}
 
 	if err != nil {
-		// Return partial success with list of destroyed sprites
+		// Return partial success with list of destroyed pucks
 		respData, _ := json.Marshal(destroyed)
 		return Response{Success: false, Error: err.Error(), Data: respData}
 	}
@@ -361,7 +361,7 @@ func (d *Daemon) handleDestroyAll(ctx context.Context, data json.RawMessage) Res
 }
 
 func (d *Daemon) handleSnapshotCreate(ctx context.Context, data json.RawMessage) Response {
-	var opts sprite.SnapshotCreateOptions
+	var opts puck.SnapshotCreateOptions
 	if err := json.Unmarshal(data, &opts); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
@@ -371,10 +371,10 @@ func (d *Daemon) handleSnapshotCreate(ctx context.Context, data json.RawMessage)
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Remove route if not leaving running (sprite is checkpointed)
+	// Remove route if not leaving running (puck is checkpointed)
 	if !opts.LeaveRunning {
-		if err := d.router.RemoveRoute(opts.SpriteName); err != nil {
-			log.Warn("Failed to remove route for checkpointed sprite", "name", opts.SpriteName, "error", err)
+		if err := d.router.RemoveRoute(opts.PuckName); err != nil {
+			log.Warn("Failed to remove route for checkpointed puck", "name", opts.PuckName, "error", err)
 		}
 	}
 
@@ -383,7 +383,7 @@ func (d *Daemon) handleSnapshotCreate(ctx context.Context, data json.RawMessage)
 }
 
 func (d *Daemon) handleSnapshotRestore(ctx context.Context, data json.RawMessage) Response {
-	var opts sprite.SnapshotRestoreOptions
+	var opts puck.SnapshotRestoreOptions
 	if err := json.Unmarshal(data, &opts); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
@@ -392,11 +392,11 @@ func (d *Daemon) handleSnapshotRestore(ctx context.Context, data json.RawMessage
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	// Re-add route for restored sprite
-	s, err := d.manager.Get(ctx, opts.SpriteName)
-	if err == nil && s.HostPort > 0 {
-		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
-			log.Warn("Failed to add route for restored sprite", "name", s.Name, "error", err)
+	// Re-add route for restored puck
+	p, err := d.manager.Get(ctx, opts.PuckName)
+	if err == nil && p.HostPort > 0 {
+		if err := d.router.AddRoute(p.Name, "127.0.0.1", p.HostPort); err != nil {
+			log.Warn("Failed to add route for restored puck", "name", p.Name, "error", err)
 		}
 	}
 
@@ -405,13 +405,13 @@ func (d *Daemon) handleSnapshotRestore(ctx context.Context, data json.RawMessage
 
 func (d *Daemon) handleSnapshotList(ctx context.Context, data json.RawMessage) Response {
 	var params struct {
-		SpriteName string `json:"sprite_name"`
+		PuckName string `json:"puck_name"`
 	}
 	if err := json.Unmarshal(data, &params); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	snapshots, err := d.manager.ListSnapshots(ctx, params.SpriteName)
+	snapshots, err := d.manager.ListSnapshots(ctx, params.PuckName)
 	if err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
@@ -422,21 +422,21 @@ func (d *Daemon) handleSnapshotList(ctx context.Context, data json.RawMessage) R
 
 func (d *Daemon) handleSnapshotDelete(ctx context.Context, data json.RawMessage) Response {
 	var params struct {
-		SpriteName   string `json:"sprite_name"`
+		PuckName     string `json:"puck_name"`
 		SnapshotName string `json:"snapshot_name"`
 	}
 	if err := json.Unmarshal(data, &params); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
-	if err := d.manager.DeleteSnapshot(ctx, params.SpriteName, params.SnapshotName); err != nil {
+	if err := d.manager.DeleteSnapshot(ctx, params.PuckName, params.SnapshotName); err != nil {
 		return Response{Success: false, Error: err.Error()}
 	}
 
 	return Response{Success: true}
 }
 
-// Manager returns the sprite manager (for console command which needs direct access)
-func (d *Daemon) Manager() *sprite.Manager {
+// Manager returns the puck manager (for console command which needs direct access)
+func (d *Daemon) Manager() *puck.Manager {
 	return d.manager
 }

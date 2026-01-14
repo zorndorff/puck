@@ -17,10 +17,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "puck",
-	Short: "Sprites on localhost - persistent, stateful containers",
-	Long: `Puck brings the Fly.io Sprite experience to your local machine.
-
-Create persistent, stateful containers that behave like tiny computers
+	Short: "Persistent, stateful containers on localhost",
+	Long: `Puck creates persistent, stateful containers (pucks) that behave like tiny computers
 rather than ephemeral application wrappers. Install software, save state,
 checkpoint and restore - your dev environment persists.`,
 	PersistentPreRunE: initConfig,

@@ -1,4 +1,4 @@
-package sprite
+package puck
 
 import (
 	"context"
@@ -13,21 +13,21 @@ import (
 	"github.com/sandwich-labs/puck/internal/store"
 )
 
-// CreateOptions contains options for creating a new sprite
+// CreateOptions contains options for creating a new puck
 type CreateOptions struct {
 	Name  string   `json:"name"`
 	Image string   `json:"image"`
 	Ports []string `json:"ports,omitempty"`
 }
 
-// Manager handles sprite lifecycle operations
+// Manager handles puck lifecycle operations
 type Manager struct {
 	podman *podman.Client
 	store  *store.DB
 	cfg    *config.Config
 }
 
-// NewManager creates a new sprite manager
+// NewManager creates a new puck manager
 func NewManager(cfg *config.Config, pc *podman.Client, db *store.DB) *Manager {
 	return &Manager{
 		podman: pc,
@@ -36,11 +36,11 @@ func NewManager(cfg *config.Config, pc *podman.Client, db *store.DB) *Manager {
 	}
 }
 
-// BaseHostPort is the starting port for auto-assigned sprite ports
+// BaseHostPort is the starting port for auto-assigned puck ports
 const BaseHostPort = 9000
 
-// Create creates a new sprite
-func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite, error) {
+// Create creates a new puck
+func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Puck, error) {
 	// Use default image if not specified
 	if opts.Image == "" {
 		opts.Image = m.cfg.DefaultImage
@@ -52,16 +52,16 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 		return nil, fmt.Errorf("finding available port: %w", err)
 	}
 
-	// Create sprite record
+	// Create puck record
 	now := time.Now()
-	s := &store.Sprite{
+	p := &store.Puck{
 		ID:        uuid.New().String(),
 		Name:      opts.Name,
 		Image:     opts.Image,
 		Status:    store.StatusCreating,
 		CreatedAt: now,
 		UpdatedAt: now,
-		VolumeDir: filepath.Join(m.cfg.SpritesDir(), opts.Name),
+		VolumeDir: filepath.Join(m.cfg.PucksDir(), opts.Name),
 		Ports:     opts.Ports,
 		HostPort:  hostPort,
 	}
@@ -69,7 +69,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 	// Create volume directories
 	volumeDirs := []string{"home", "etc", "var"}
 	for _, dir := range volumeDirs {
-		path := filepath.Join(s.VolumeDir, dir)
+		path := filepath.Join(p.VolumeDir, dir)
 		if err := os.MkdirAll(path, 0755); err != nil {
 			return nil, fmt.Errorf("creating volume directory %s: %w", dir, err)
 		}
@@ -77,9 +77,9 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 
 	// Create container with port mapping for HTTP routing
 	volumes := map[string]string{
-		filepath.Join(s.VolumeDir, "home"): "/home",
-		filepath.Join(s.VolumeDir, "etc"):  "/etc/puck",
-		filepath.Join(s.VolumeDir, "var"):  "/var/puck",
+		filepath.Join(p.VolumeDir, "home"): "/home",
+		filepath.Join(p.VolumeDir, "etc"):  "/etc/puck",
+		filepath.Join(p.VolumeDir, "var"):  "/var/puck",
 	}
 
 	// Add the auto-assigned port mapping (host:container)
@@ -92,123 +92,123 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 		Ports:   portMappings,
 		Systemd: true,
 		Labels: map[string]string{
-			"puck.sprite.id": s.ID,
+			"puck.id": p.ID,
 		},
 	})
 	if err != nil {
 		// Clean up volume dir on failure
-		os.RemoveAll(s.VolumeDir)
+		os.RemoveAll(p.VolumeDir)
 		return nil, fmt.Errorf("creating container: %w", err)
 	}
 
-	s.ID = containerID
+	p.ID = containerID
 
 	// Start the container
 	if err := m.podman.StartContainer(ctx, containerID); err != nil {
 		m.podman.RemoveContainer(ctx, containerID, true)
-		os.RemoveAll(s.VolumeDir)
+		os.RemoveAll(p.VolumeDir)
 		return nil, fmt.Errorf("starting container: %w", err)
 	}
 
 	// Get container IP
 	ip, err := m.podman.GetContainerIP(ctx, containerID)
 	if err == nil {
-		s.ContainerIP = ip
+		p.ContainerIP = ip
 	}
 
-	s.Status = store.StatusRunning
+	p.Status = store.StatusRunning
 
 	// Save to database
-	if err := m.store.CreateSprite(ctx, s); err != nil {
+	if err := m.store.CreatePuck(ctx, p); err != nil {
 		m.podman.RemoveContainer(ctx, containerID, true)
-		os.RemoveAll(s.VolumeDir)
-		return nil, fmt.Errorf("saving sprite: %w", err)
+		os.RemoveAll(p.VolumeDir)
+		return nil, fmt.Errorf("saving puck: %w", err)
 	}
 
-	return s, nil
+	return p, nil
 }
 
-// Get retrieves a sprite by name
-func (m *Manager) Get(ctx context.Context, name string) (*store.Sprite, error) {
-	return m.store.GetSprite(ctx, name)
+// Get retrieves a puck by name
+func (m *Manager) Get(ctx context.Context, name string) (*store.Puck, error) {
+	return m.store.GetPuck(ctx, name)
 }
 
-// List returns all sprites
-func (m *Manager) List(ctx context.Context) ([]*store.Sprite, error) {
-	sprites, err := m.store.ListSprites(ctx)
+// List returns all pucks
+func (m *Manager) List(ctx context.Context) ([]*store.Puck, error) {
+	pucks, err := m.store.ListPucks(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Update status from Podman for each sprite
-	for _, s := range sprites {
-		running, err := m.podman.IsRunning(ctx, s.ID)
+	// Update status from Podman for each puck
+	for _, p := range pucks {
+		running, err := m.podman.IsRunning(ctx, p.ID)
 		if err != nil {
 			continue // Container might not exist
 		}
 		if running {
-			s.Status = store.StatusRunning
+			p.Status = store.StatusRunning
 		} else {
-			s.Status = store.StatusStopped
+			p.Status = store.StatusStopped
 		}
 	}
 
-	return sprites, nil
+	return pucks, nil
 }
 
-// Start starts a stopped sprite
+// Start starts a stopped puck
 func (m *Manager) Start(ctx context.Context, name string) error {
-	s, err := m.store.GetSprite(ctx, name)
+	p, err := m.store.GetPuck(ctx, name)
 	if err != nil {
 		return err
 	}
 
-	if err := m.podman.StartContainer(ctx, s.ID); err != nil {
+	if err := m.podman.StartContainer(ctx, p.ID); err != nil {
 		return fmt.Errorf("starting container: %w", err)
 	}
 
 	// Update IP
-	ip, err := m.podman.GetContainerIP(ctx, s.ID)
+	ip, err := m.podman.GetContainerIP(ctx, p.ID)
 	if err == nil {
-		m.store.UpdateSpriteContainerIP(ctx, name, ip)
+		m.store.UpdatePuckContainerIP(ctx, name, ip)
 	}
 
-	return m.store.UpdateSpriteStatus(ctx, name, store.StatusRunning)
+	return m.store.UpdatePuckStatus(ctx, name, store.StatusRunning)
 }
 
-// Stop stops a running sprite
+// Stop stops a running puck
 func (m *Manager) Stop(ctx context.Context, name string) error {
-	s, err := m.store.GetSprite(ctx, name)
+	p, err := m.store.GetPuck(ctx, name)
 	if err != nil {
 		return err
 	}
 
-	if err := m.podman.StopContainer(ctx, s.ID); err != nil {
+	if err := m.podman.StopContainer(ctx, p.ID); err != nil {
 		return fmt.Errorf("stopping container: %w", err)
 	}
 
-	return m.store.UpdateSpriteStatus(ctx, name, store.StatusStopped)
+	return m.store.UpdatePuckStatus(ctx, name, store.StatusStopped)
 }
 
-// Destroy removes a sprite and its data
+// Destroy removes a puck and its data
 func (m *Manager) Destroy(ctx context.Context, name string, force bool) error {
-	s, err := m.store.GetSprite(ctx, name)
+	p, err := m.store.GetPuck(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	// Stop container first if running and not forcing
 	if !force {
-		running, _ := m.podman.IsRunning(ctx, s.ID)
+		running, _ := m.podman.IsRunning(ctx, p.ID)
 		if running {
-			if err := m.podman.StopContainer(ctx, s.ID); err != nil {
+			if err := m.podman.StopContainer(ctx, p.ID); err != nil {
 				return fmt.Errorf("stopping container: %w (use --force to override)", err)
 			}
 		}
 	}
 
 	// Remove container (force if requested)
-	if err := m.podman.RemoveContainer(ctx, s.ID, force); err != nil {
+	if err := m.podman.RemoveContainer(ctx, p.ID, force); err != nil {
 		// Try to remove even if container doesn't exist
 		if !force {
 			return fmt.Errorf("removing container: %w", err)
@@ -217,21 +217,21 @@ func (m *Manager) Destroy(ctx context.Context, name string, force bool) error {
 	}
 
 	// Remove volume directory
-	if s.VolumeDir != "" {
-		os.RemoveAll(s.VolumeDir) // Ignore errors - may not exist
+	if p.VolumeDir != "" {
+		os.RemoveAll(p.VolumeDir) // Ignore errors - may not exist
 	}
 
 	// Remove from database
-	if err := m.store.DeleteSprite(ctx, name); err != nil {
+	if err := m.store.DeletePuck(ctx, name); err != nil {
 		return fmt.Errorf("removing from database: %w", err)
 	}
 
 	return nil
 }
 
-// DestroyAll removes all sprites
+// DestroyAll removes all pucks
 func (m *Manager) DestroyAll(ctx context.Context, force bool) ([]string, error) {
-	sprites, err := m.store.ListSprites(ctx)
+	pucks, err := m.store.ListPucks(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -239,87 +239,87 @@ func (m *Manager) DestroyAll(ctx context.Context, force bool) ([]string, error) 
 	var destroyed []string
 	var errors []string
 
-	for _, s := range sprites {
-		if err := m.Destroy(ctx, s.Name, force); err != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", s.Name, err))
+	for _, p := range pucks {
+		if err := m.Destroy(ctx, p.Name, force); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", p.Name, err))
 		} else {
-			destroyed = append(destroyed, s.Name)
+			destroyed = append(destroyed, p.Name)
 		}
 	}
 
 	if len(errors) > 0 {
-		return destroyed, fmt.Errorf("failed to destroy some sprites: %v", errors)
+		return destroyed, fmt.Errorf("failed to destroy some pucks: %v", errors)
 	}
 
 	return destroyed, nil
 }
 
-// Console opens a shell in a sprite
+// Console opens a shell in a puck
 func (m *Manager) Console(ctx context.Context, name string, shell string) error {
-	s, err := m.store.GetSprite(ctx, name)
+	p, err := m.store.GetPuck(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	// Start if not running
-	running, err := m.podman.IsRunning(ctx, s.ID)
+	running, err := m.podman.IsRunning(ctx, p.ID)
 	if err != nil {
 		return fmt.Errorf("checking container status: %w", err)
 	}
 
 	if !running {
 		if err := m.Start(ctx, name); err != nil {
-			return fmt.Errorf("starting sprite: %w", err)
+			return fmt.Errorf("starting puck: %w", err)
 		}
 	}
 
-	return m.podman.Console(ctx, s.ID, shell)
+	return m.podman.Console(ctx, p.ID, shell)
 }
 
-// Exists checks if a sprite exists
+// Exists checks if a puck exists
 func (m *Manager) Exists(ctx context.Context, name string) bool {
-	_, err := m.store.GetSprite(ctx, name)
+	_, err := m.store.GetPuck(ctx, name)
 	return err == nil
 }
 
 // SnapshotCreateOptions contains options for creating a snapshot
 type SnapshotCreateOptions struct {
-	SpriteName   string `json:"sprite_name"`
+	PuckName     string `json:"puck_name"`
 	SnapshotName string `json:"snapshot_name"`
 	LeaveRunning bool   `json:"leave_running"`
 }
 
 // SnapshotRestoreOptions contains options for restoring a snapshot
 type SnapshotRestoreOptions struct {
-	SpriteName   string `json:"sprite_name"`
+	PuckName     string `json:"puck_name"`
 	SnapshotName string `json:"snapshot_name"`
 }
 
-// CreateSnapshot creates a checkpoint snapshot of a sprite
+// CreateSnapshot creates a checkpoint snapshot of a puck
 func (m *Manager) CreateSnapshot(ctx context.Context, opts SnapshotCreateOptions) (*store.Snapshot, error) {
-	s, err := m.store.GetSprite(ctx, opts.SpriteName)
+	p, err := m.store.GetPuck(ctx, opts.PuckName)
 	if err != nil {
 		return nil, err
 	}
 
 	// Container must be running to checkpoint
-	running, err := m.podman.IsRunning(ctx, s.ID)
+	running, err := m.podman.IsRunning(ctx, p.ID)
 	if err != nil {
 		return nil, fmt.Errorf("checking container status: %w", err)
 	}
 	if !running {
-		return nil, fmt.Errorf("sprite must be running to create snapshot")
+		return nil, fmt.Errorf("puck must be running to create snapshot")
 	}
 
 	// Create snapshots directory
-	snapshotDir := filepath.Join(m.cfg.SnapshotsDir(), opts.SpriteName)
+	snapshotDir := filepath.Join(m.cfg.SnapshotsDir(), opts.PuckName)
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating snapshot directory: %w", err)
 	}
 
 	// Create checkpoint archive
 	exportPath := filepath.Join(snapshotDir, opts.SnapshotName+".tar.gz")
-	if err := m.podman.Checkpoint(ctx, s.ID, podman.CheckpointOptions{
+	if err := m.podman.Checkpoint(ctx, p.ID, podman.CheckpointOptions{
 		ExportPath:   exportPath,
 		LeaveRunning: opts.LeaveRunning,
 	}); err != nil {
@@ -332,21 +332,21 @@ func (m *Manager) CreateSnapshot(ctx context.Context, opts SnapshotCreateOptions
 		return nil, fmt.Errorf("getting snapshot size: %w", err)
 	}
 
-	// Update sprite status if not leaving running
+	// Update puck status if not leaving running
 	if !opts.LeaveRunning {
-		m.store.UpdateSpriteStatus(ctx, opts.SpriteName, store.StatusCheckpointed)
+		m.store.UpdatePuckStatus(ctx, opts.PuckName, store.StatusCheckpointed)
 	}
 
 	// Create snapshot record
 	now := time.Now()
 	snapshot := &store.Snapshot{
-		ID:         uuid.New().String(),
-		SpriteID:   s.ID,
-		SpriteName: s.Name,
-		Name:       opts.SnapshotName,
-		Path:       exportPath,
-		SizeBytes:  info.Size(),
-		CreatedAt:  now,
+		ID:        uuid.New().String(),
+		PuckID:    p.ID,
+		PuckName:  p.Name,
+		Name:      opts.SnapshotName,
+		Path:      exportPath,
+		SizeBytes: info.Size(),
+		CreatedAt: now,
 	}
 
 	if err := m.store.CreateSnapshot(ctx, snapshot); err != nil {
@@ -358,14 +358,14 @@ func (m *Manager) CreateSnapshot(ctx context.Context, opts SnapshotCreateOptions
 	return snapshot, nil
 }
 
-// RestoreSnapshot restores a sprite from a checkpoint snapshot
+// RestoreSnapshot restores a puck from a checkpoint snapshot
 func (m *Manager) RestoreSnapshot(ctx context.Context, opts SnapshotRestoreOptions) error {
-	s, err := m.store.GetSprite(ctx, opts.SpriteName)
+	p, err := m.store.GetPuck(ctx, opts.PuckName)
 	if err != nil {
 		return err
 	}
 
-	snapshot, err := m.store.GetSnapshot(ctx, s.ID, opts.SnapshotName)
+	snapshot, err := m.store.GetSnapshot(ctx, p.ID, opts.SnapshotName)
 	if err != nil {
 		return err
 	}
@@ -376,61 +376,61 @@ func (m *Manager) RestoreSnapshot(ctx context.Context, opts SnapshotRestoreOptio
 	}
 
 	// Stop existing container if running
-	running, _ := m.podman.IsRunning(ctx, s.ID)
+	running, _ := m.podman.IsRunning(ctx, p.ID)
 	if running {
-		if err := m.podman.StopContainer(ctx, s.ID); err != nil {
+		if err := m.podman.StopContainer(ctx, p.ID); err != nil {
 			return fmt.Errorf("stopping container: %w", err)
 		}
 	}
 
 	// Remove existing container
-	if err := m.podman.RemoveContainer(ctx, s.ID, true); err != nil {
+	if err := m.podman.RemoveContainer(ctx, p.ID, true); err != nil {
 		// Container might not exist, continue anyway
 	}
 
 	// Restore from checkpoint
 	newContainerID, err := m.podman.Restore(ctx, podman.RestoreOptions{
 		ImportPath: snapshot.Path,
-		Name:       opts.SpriteName,
+		Name:       opts.PuckName,
 	})
 	if err != nil {
 		return fmt.Errorf("restoring checkpoint: %w", err)
 	}
 
-	// Update sprite with new container ID and status
+	// Update puck with new container ID and status
 	if _, err := m.store.ExecContext(ctx, `
-		UPDATE sprites SET id = ?, status = ?, updated_at = ? WHERE name = ?
-	`, newContainerID, store.StatusRunning, time.Now(), opts.SpriteName); err != nil {
-		return fmt.Errorf("updating sprite: %w", err)
+		UPDATE pucks SET id = ?, status = ?, updated_at = ? WHERE name = ?
+	`, newContainerID, store.StatusRunning, time.Now(), opts.PuckName); err != nil {
+		return fmt.Errorf("updating puck: %w", err)
 	}
 
 	// Update container IP
 	ip, err := m.podman.GetContainerIP(ctx, newContainerID)
 	if err == nil {
-		m.store.UpdateSpriteContainerIP(ctx, opts.SpriteName, ip)
+		m.store.UpdatePuckContainerIP(ctx, opts.PuckName, ip)
 	}
 
 	return nil
 }
 
-// ListSnapshots returns all snapshots for a sprite
-func (m *Manager) ListSnapshots(ctx context.Context, spriteName string) ([]*store.Snapshot, error) {
-	s, err := m.store.GetSprite(ctx, spriteName)
+// ListSnapshots returns all snapshots for a puck
+func (m *Manager) ListSnapshots(ctx context.Context, puckName string) ([]*store.Snapshot, error) {
+	p, err := m.store.GetPuck(ctx, puckName)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.store.ListSnapshots(ctx, s.ID)
+	return m.store.ListSnapshots(ctx, p.ID)
 }
 
 // DeleteSnapshot deletes a snapshot
-func (m *Manager) DeleteSnapshot(ctx context.Context, spriteName, snapshotName string) error {
-	s, err := m.store.GetSprite(ctx, spriteName)
+func (m *Manager) DeleteSnapshot(ctx context.Context, puckName, snapshotName string) error {
+	p, err := m.store.GetPuck(ctx, puckName)
 	if err != nil {
 		return err
 	}
 
-	snapshot, err := m.store.GetSnapshot(ctx, s.ID, snapshotName)
+	snapshot, err := m.store.GetSnapshot(ctx, p.ID, snapshotName)
 	if err != nil {
 		return err
 	}
@@ -444,18 +444,18 @@ func (m *Manager) DeleteSnapshot(ctx context.Context, spriteName, snapshotName s
 	return m.store.DeleteSnapshot(ctx, snapshot.ID)
 }
 
-// findAvailablePort finds the next available host port for sprite routing
+// findAvailablePort finds the next available host port for puck routing
 func (m *Manager) findAvailablePort(ctx context.Context) (int, error) {
-	sprites, err := m.store.ListSprites(ctx)
+	pucks, err := m.store.ListPucks(ctx)
 	if err != nil {
 		return 0, err
 	}
 
 	// Find the highest used port
 	usedPorts := make(map[int]bool)
-	for _, s := range sprites {
-		if s.HostPort > 0 {
-			usedPorts[s.HostPort] = true
+	for _, p := range pucks {
+		if p.HostPort > 0 {
+			usedPorts[p.HostPort] = true
 		}
 	}
 

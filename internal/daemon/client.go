@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/sandwich-labs/puck/internal/config"
-	"github.com/sandwich-labs/puck/internal/sprite"
+	"github.com/sandwich-labs/puck/internal/puck"
 	"github.com/sandwich-labs/puck/internal/store"
 )
 
@@ -67,8 +67,8 @@ func (c *Client) Ping() error {
 	return nil
 }
 
-// Create creates a new sprite
-func (c *Client) Create(opts sprite.CreateOptions) (*store.Sprite, error) {
+// Create creates a new puck
+func (c *Client) Create(opts puck.CreateOptions) (*store.Puck, error) {
 	data, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
@@ -82,15 +82,15 @@ func (c *Client) Create(opts sprite.CreateOptions) (*store.Sprite, error) {
 		return nil, fmt.Errorf(resp.Error)
 	}
 
-	var s store.Sprite
-	if err := json.Unmarshal(resp.Data, &s); err != nil {
+	var p store.Puck
+	if err := json.Unmarshal(resp.Data, &p); err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return &p, nil
 }
 
-// List returns all sprites
-func (c *Client) List() ([]*store.Sprite, error) {
+// List returns all pucks
+func (c *Client) List() ([]*store.Puck, error) {
 	resp, err := c.send(&Request{Action: "list"})
 	if err != nil {
 		return nil, err
@@ -99,15 +99,15 @@ func (c *Client) List() ([]*store.Sprite, error) {
 		return nil, fmt.Errorf(resp.Error)
 	}
 
-	var sprites []*store.Sprite
-	if err := json.Unmarshal(resp.Data, &sprites); err != nil {
+	var pucks []*store.Puck
+	if err := json.Unmarshal(resp.Data, &pucks); err != nil {
 		return nil, err
 	}
-	return sprites, nil
+	return pucks, nil
 }
 
-// Get retrieves a sprite by name
-func (c *Client) Get(name string) (*store.Sprite, error) {
+// Get retrieves a puck by name
+func (c *Client) Get(name string) (*store.Puck, error) {
 	data, _ := json.Marshal(map[string]string{"name": name})
 	resp, err := c.send(&Request{Action: "get", Data: data})
 	if err != nil {
@@ -117,14 +117,14 @@ func (c *Client) Get(name string) (*store.Sprite, error) {
 		return nil, fmt.Errorf(resp.Error)
 	}
 
-	var s store.Sprite
-	if err := json.Unmarshal(resp.Data, &s); err != nil {
+	var p store.Puck
+	if err := json.Unmarshal(resp.Data, &p); err != nil {
 		return nil, err
 	}
-	return &s, nil
+	return &p, nil
 }
 
-// Start starts a sprite
+// Start starts a puck
 func (c *Client) Start(name string) error {
 	data, _ := json.Marshal(map[string]string{"name": name})
 	resp, err := c.send(&Request{Action: "start", Data: data})
@@ -137,7 +137,7 @@ func (c *Client) Start(name string) error {
 	return nil
 }
 
-// Stop stops a sprite
+// Stop stops a puck
 func (c *Client) Stop(name string) error {
 	data, _ := json.Marshal(map[string]string{"name": name})
 	resp, err := c.send(&Request{Action: "stop", Data: data})
@@ -150,7 +150,7 @@ func (c *Client) Stop(name string) error {
 	return nil
 }
 
-// Destroy removes a sprite
+// Destroy removes a puck
 func (c *Client) Destroy(name string, force bool) error {
 	data, _ := json.Marshal(map[string]interface{}{"name": name, "force": force})
 	resp, err := c.send(&Request{Action: "destroy", Data: data})
@@ -163,7 +163,7 @@ func (c *Client) Destroy(name string, force bool) error {
 	return nil
 }
 
-// DestroyAll removes all sprites
+// DestroyAll removes all pucks
 func (c *Client) DestroyAll(force bool) ([]string, error) {
 	data, _ := json.Marshal(map[string]interface{}{"force": force})
 	resp, err := c.send(&Request{Action: "destroy-all", Data: data})
@@ -181,10 +181,10 @@ func (c *Client) DestroyAll(force bool) ([]string, error) {
 	return destroyed, nil
 }
 
-// SnapshotCreate creates a checkpoint snapshot of a sprite
-func (c *Client) SnapshotCreate(spriteName, snapshotName string, leaveRunning bool) (*store.Snapshot, error) {
-	data, _ := json.Marshal(sprite.SnapshotCreateOptions{
-		SpriteName:   spriteName,
+// SnapshotCreate creates a checkpoint snapshot of a puck
+func (c *Client) SnapshotCreate(puckName, snapshotName string, leaveRunning bool) (*store.Snapshot, error) {
+	data, _ := json.Marshal(puck.SnapshotCreateOptions{
+		PuckName:     puckName,
 		SnapshotName: snapshotName,
 		LeaveRunning: leaveRunning,
 	})
@@ -203,10 +203,10 @@ func (c *Client) SnapshotCreate(spriteName, snapshotName string, leaveRunning bo
 	return &snapshot, nil
 }
 
-// SnapshotRestore restores a sprite from a checkpoint snapshot
-func (c *Client) SnapshotRestore(spriteName, snapshotName string) error {
-	data, _ := json.Marshal(sprite.SnapshotRestoreOptions{
-		SpriteName:   spriteName,
+// SnapshotRestore restores a puck from a checkpoint snapshot
+func (c *Client) SnapshotRestore(puckName, snapshotName string) error {
+	data, _ := json.Marshal(puck.SnapshotRestoreOptions{
+		PuckName:     puckName,
 		SnapshotName: snapshotName,
 	})
 	resp, err := c.send(&Request{Action: "snapshot-restore", Data: data})
@@ -219,9 +219,9 @@ func (c *Client) SnapshotRestore(spriteName, snapshotName string) error {
 	return nil
 }
 
-// SnapshotList returns all snapshots for a sprite
-func (c *Client) SnapshotList(spriteName string) ([]*store.Snapshot, error) {
-	data, _ := json.Marshal(map[string]string{"sprite_name": spriteName})
+// SnapshotList returns all snapshots for a puck
+func (c *Client) SnapshotList(puckName string) ([]*store.Snapshot, error) {
+	data, _ := json.Marshal(map[string]string{"puck_name": puckName})
 	resp, err := c.send(&Request{Action: "snapshot-list", Data: data})
 	if err != nil {
 		return nil, err
@@ -238,9 +238,9 @@ func (c *Client) SnapshotList(spriteName string) ([]*store.Snapshot, error) {
 }
 
 // SnapshotDelete deletes a snapshot
-func (c *Client) SnapshotDelete(spriteName, snapshotName string) error {
+func (c *Client) SnapshotDelete(puckName, snapshotName string) error {
 	data, _ := json.Marshal(map[string]string{
-		"sprite_name":   spriteName,
+		"puck_name":     puckName,
 		"snapshot_name": snapshotName,
 	})
 	resp, err := c.send(&Request{Action: "snapshot-delete", Data: data})

@@ -16,6 +16,13 @@ func isDuplicateColumnError(err error) bool {
 	return strings.Contains(err.Error(), "duplicate column")
 }
 
+// isTableExistsError checks if the error is a "table already exists" error
+func isTableExistsError(err error) bool {
+	errStr := err.Error()
+	return strings.Contains(errStr, "already exists") ||
+		strings.Contains(errStr, "already another table")
+}
+
 // DB wraps the SQLite database connection
 type DB struct {
 	conn *sql.DB
@@ -61,7 +68,8 @@ func (db *DB) Close() error {
 // migrate runs database migrations
 func (db *DB) migrate() error {
 	migrations := []string{
-		`CREATE TABLE IF NOT EXISTS sprites (
+		// Create pucks table (renamed from sprites)
+		`CREATE TABLE IF NOT EXISTS pucks (
 			id TEXT PRIMARY KEY,
 			name TEXT UNIQUE NOT NULL,
 			image TEXT NOT NULL,
@@ -75,28 +83,37 @@ func (db *DB) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		// Migration: rename sprites table to pucks if sprites exists
+		`ALTER TABLE sprites RENAME TO pucks`,
 		// Migration: add host_port column if not exists
-		`ALTER TABLE sprites ADD COLUMN host_port INTEGER DEFAULT 0`,
+		`ALTER TABLE pucks ADD COLUMN host_port INTEGER DEFAULT 0`,
+		// Create snapshots table with puck references
 		`CREATE TABLE IF NOT EXISTS snapshots (
 			id TEXT PRIMARY KEY,
-			sprite_id TEXT NOT NULL,
-			sprite_name TEXT NOT NULL,
+			puck_id TEXT NOT NULL,
+			puck_name TEXT NOT NULL,
 			name TEXT NOT NULL,
 			path TEXT NOT NULL,
 			size_bytes INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (sprite_id) REFERENCES sprites(id) ON DELETE CASCADE,
-			UNIQUE(sprite_id, name)
+			FOREIGN KEY (puck_id) REFERENCES pucks(id) ON DELETE CASCADE,
+			UNIQUE(puck_id, name)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_sprites_name ON sprites(name)`,
-		`CREATE INDEX IF NOT EXISTS idx_sprites_status ON sprites(status)`,
-		`CREATE INDEX IF NOT EXISTS idx_snapshots_sprite ON snapshots(sprite_id)`,
+		// Migration: rename sprite columns in snapshots if they exist
+		`ALTER TABLE snapshots RENAME COLUMN sprite_id TO puck_id`,
+		`ALTER TABLE snapshots RENAME COLUMN sprite_name TO puck_name`,
+		// Create indexes
+		`CREATE INDEX IF NOT EXISTS idx_pucks_name ON pucks(name)`,
+		`CREATE INDEX IF NOT EXISTS idx_pucks_status ON pucks(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_snapshots_puck ON snapshots(puck_id)`,
 	}
 
 	for _, m := range migrations {
 		if _, err := db.conn.Exec(m); err != nil {
-			// Ignore "duplicate column" errors for ALTER TABLE migrations
-			if !isDuplicateColumnError(err) {
+			// Ignore expected errors from migrations
+			if !isDuplicateColumnError(err) && !isTableExistsError(err) &&
+				!strings.Contains(err.Error(), "no such table") &&
+				!strings.Contains(err.Error(), "no such column") {
 				return fmt.Errorf("executing migration: %w", err)
 			}
 		}

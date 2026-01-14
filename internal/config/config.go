@@ -114,9 +114,9 @@ func defaultDaemonSocket() string {
 	return filepath.Join(dataDir, "puckd.sock")
 }
 
-// SpritesDir returns the directory for sprite data
-func (c *Config) SpritesDir() string {
-	return filepath.Join(c.DataDir, "sprites")
+// PucksDir returns the directory for puck data
+func (c *Config) PucksDir() string {
+	return filepath.Join(c.DataDir, "pucks")
 }
 
 // SnapshotsDir returns the directory for snapshots

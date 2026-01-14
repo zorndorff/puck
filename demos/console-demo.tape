@@ -12,7 +12,7 @@ Set Padding 20
 Set Framerate 30
 Set TypingSpeed 40ms
 
-Type "# Create a sprite for development"
+Type "# Create a puck for development"
 Enter
 Sleep 500ms
 

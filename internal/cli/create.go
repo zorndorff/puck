@@ -8,13 +8,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/sandwich-labs/puck/internal/daemon"
-	"github.com/sandwich-labs/puck/internal/sprite"
+	"github.com/sandwich-labs/puck/internal/puck"
 )
 
 var createCmd = &cobra.Command{
 	Use:   "create [name]",
-	Short: "Create a new sprite",
-	Long:  `Create a new persistent container (sprite) with the given name.`,
+	Short: "Create a new puck",
+	Long:  `Create a new persistent container (puck) with the given name.`,
 	Args:  cobra.MaximumNArgs(1),
 	RunE:  runCreate,
 }
@@ -34,7 +34,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		name = args[0]
 	} else {
-		name = generateSpriteName()
+		name = generatePuckName()
 	}
 
 	client, err := daemon.NewClient()
@@ -47,9 +47,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("daemon not running: %w\nStart with: puck daemon start", err)
 	}
 
-	log.Info("Creating sprite", "name", name, "image", createImage)
+	log.Info("Creating puck", "name", name, "image", createImage)
 
-	s, err := client.Create(sprite.CreateOptions{
+	p, err := client.Create(puck.CreateOptions{
 		Name:  name,
 		Image: createImage,
 		Ports: createPorts,
@@ -65,15 +65,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 	tailnet := viper.GetString("tailnet")
 
-	fmt.Printf("Created sprite '%s'\n", s.Name)
-	fmt.Printf("  Local:  http://localhost:%d/%s\n", port, s.Name)
+	fmt.Printf("Created puck '%s'\n", p.Name)
+	fmt.Printf("  Local:  http://localhost:%d/%s\n", port, p.Name)
 	if tailnet != "" {
-		fmt.Printf("  Remote: https://puck.%s/%s\n", tailnet, s.Name)
+		fmt.Printf("  Remote: https://puck.%s/%s\n", tailnet, p.Name)
 	}
 	return nil
 }
 
-func generateSpriteName() string {
+func generatePuckName() string {
 	adjectives := []string{"swift", "brave", "calm", "eager", "fair", "glad", "keen", "neat", "wise", "bold"}
 	nouns := []string{"fox", "owl", "elk", "bee", "ant", "bat", "cat", "dog", "eel", "jay"}
 
