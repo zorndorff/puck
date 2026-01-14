@@ -8,12 +8,15 @@ Puck creates and manages stateful containers ("sprites") that persist across ses
 
 ## Why Puck?
 
-Traditional containers are ephemeral by design. Every restart means reinstalling packages, reconfiguring settings, and losing your work-in-progress. Puck takes a different approach:
+Traditional containers are ephemeral by design. Every restart means reinstalling packages, reconfiguring settings, and losing your work-in-progress. As [Fly.io put it](https://fly.io/blog/code-and-let-live/): *"The age of sandboxes is over. The time of the disposable computer has come."*
+
+Puck brings that philosophy to your local machine:
 
 - **Dev is Prod**: Your development environment persists and evolves with your project
-- **Stateful by Default**: Containers act like actual computers with durable storage
+- **Stateful by Default**: Sprites act like actual computers with durable storage
 - **Checkpoint/Restore**: Freeze and resume container state instantly with CRIU
 - **HTTP Routing**: Access all sprites through a unified localhost endpoint
+- **Agent-Friendly**: Perfect for AI coding agents that need persistent environments
 
 ## Features
 
@@ -308,13 +311,42 @@ done
 - [ ] Remote sprite synchronization
 - [ ] GUI dashboard
 
-## Philosophy
+## Inspiration
 
-Puck is inspired by [Fly.io's Sprites](https://fly.io/blog/sprites/) concept. The core idea is that development environments should be **durable** and **stateful**—more like tiny virtual machines than throwaway containers.
+Puck is directly inspired by [Fly.io's Sprites](https://fly.io/blog/code-and-let-live/)—their vision of "disposable cloud computers" that combine instant provisioning with true persistence. We wanted to bring that same philosophy to local development.
 
-> "Sandbox" LLM orchestration like daemonless containers is actually kind of a dead end... What they need isn't sandboxes, it's actual computers.
+### The Problem with Ephemeral Sandboxes
 
-Read more about the philosophy in [STARTING.md](STARTING.md).
+As Fly.io's Thomas Ptacek argues:
+
+> "The state of the art in agent isolation is a read-only sandbox... ephemeral sandboxes are obsolete. Stop killing your sandboxes every time you use them."
+
+The industry has been forcing agents (and developers) into stateless containers designed for horizontal-scaling production workloads. But that's not how development actually works:
+
+> "Claude isn't a pro developer. Claude is a hyper-productive five-year-old savant... If you force an agent to, it'll work around containerization and do work. But you're not helping the agent in any way by doing that. They don't want containers. They don't want 'sandboxes'. They want computers."
+
+### What Makes a Computer?
+
+Fly.io's definition is simple and powerful:
+
+> - A computer doesn't necessarily vanish after a single job is completed, and
+> - it has durable storage.
+>
+> Since current agent sandboxes have neither of these, I can stop the definition right there.
+
+### Dev is Prod, Prod is Dev
+
+The most compelling idea from Sprites is that for many applications—especially personal tools and AI-assisted development—the distinction between development and production environments is artificial:
+
+> "For this app, dev is prod, prod is dev."
+
+Puck embraces this philosophy locally. Your sprites persist, evolve with your projects, and maintain state across sessions—just like a real machine would.
+
+### Credits
+
+- **[Fly.io](https://fly.io)** for the Sprites concept and the ["Code And Let Live"](https://fly.io/blog/code-and-let-live/) manifesto that inspired this project
+- The Fly.io team for articulating why ephemeral sandboxes are holding back both human developers and AI agents
+- The full Fly.io blog post is preserved in [STARTING.md](STARTING.md)
 
 ## License
 
