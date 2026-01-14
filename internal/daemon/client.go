@@ -180,3 +180,75 @@ func (c *Client) DestroyAll(force bool) ([]string, error) {
 	}
 	return destroyed, nil
 }
+
+// SnapshotCreate creates a checkpoint snapshot of a sprite
+func (c *Client) SnapshotCreate(spriteName, snapshotName string, leaveRunning bool) (*store.Snapshot, error) {
+	data, _ := json.Marshal(sprite.SnapshotCreateOptions{
+		SpriteName:   spriteName,
+		SnapshotName: snapshotName,
+		LeaveRunning: leaveRunning,
+	})
+	resp, err := c.send(&Request{Action: "snapshot-create", Data: data})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf(resp.Error)
+	}
+
+	var snapshot store.Snapshot
+	if err := json.Unmarshal(resp.Data, &snapshot); err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
+}
+
+// SnapshotRestore restores a sprite from a checkpoint snapshot
+func (c *Client) SnapshotRestore(spriteName, snapshotName string) error {
+	data, _ := json.Marshal(sprite.SnapshotRestoreOptions{
+		SpriteName:   spriteName,
+		SnapshotName: snapshotName,
+	})
+	resp, err := c.send(&Request{Action: "snapshot-restore", Data: data})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf(resp.Error)
+	}
+	return nil
+}
+
+// SnapshotList returns all snapshots for a sprite
+func (c *Client) SnapshotList(spriteName string) ([]*store.Snapshot, error) {
+	data, _ := json.Marshal(map[string]string{"sprite_name": spriteName})
+	resp, err := c.send(&Request{Action: "snapshot-list", Data: data})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf(resp.Error)
+	}
+
+	var snapshots []*store.Snapshot
+	if err := json.Unmarshal(resp.Data, &snapshots); err != nil {
+		return nil, err
+	}
+	return snapshots, nil
+}
+
+// SnapshotDelete deletes a snapshot
+func (c *Client) SnapshotDelete(spriteName, snapshotName string) error {
+	data, _ := json.Marshal(map[string]string{
+		"sprite_name":   spriteName,
+		"snapshot_name": snapshotName,
+	})
+	resp, err := c.send(&Request{Action: "snapshot-delete", Data: data})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf(resp.Error)
+	}
+	return nil
+}

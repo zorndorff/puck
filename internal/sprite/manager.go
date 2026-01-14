@@ -282,6 +282,168 @@ func (m *Manager) Exists(ctx context.Context, name string) bool {
 	return err == nil
 }
 
+// SnapshotCreateOptions contains options for creating a snapshot
+type SnapshotCreateOptions struct {
+	SpriteName   string `json:"sprite_name"`
+	SnapshotName string `json:"snapshot_name"`
+	LeaveRunning bool   `json:"leave_running"`
+}
+
+// SnapshotRestoreOptions contains options for restoring a snapshot
+type SnapshotRestoreOptions struct {
+	SpriteName   string `json:"sprite_name"`
+	SnapshotName string `json:"snapshot_name"`
+}
+
+// CreateSnapshot creates a checkpoint snapshot of a sprite
+func (m *Manager) CreateSnapshot(ctx context.Context, opts SnapshotCreateOptions) (*store.Snapshot, error) {
+	s, err := m.store.GetSprite(ctx, opts.SpriteName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Container must be running to checkpoint
+	running, err := m.podman.IsRunning(ctx, s.ID)
+	if err != nil {
+		return nil, fmt.Errorf("checking container status: %w", err)
+	}
+	if !running {
+		return nil, fmt.Errorf("sprite must be running to create snapshot")
+	}
+
+	// Create snapshots directory
+	snapshotDir := filepath.Join(m.cfg.SnapshotsDir(), opts.SpriteName)
+	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
+		return nil, fmt.Errorf("creating snapshot directory: %w", err)
+	}
+
+	// Create checkpoint archive
+	exportPath := filepath.Join(snapshotDir, opts.SnapshotName+".tar.gz")
+	if err := m.podman.Checkpoint(ctx, s.ID, podman.CheckpointOptions{
+		ExportPath:   exportPath,
+		LeaveRunning: opts.LeaveRunning,
+	}); err != nil {
+		return nil, fmt.Errorf("checkpointing container: %w", err)
+	}
+
+	// Get file size
+	info, err := os.Stat(exportPath)
+	if err != nil {
+		return nil, fmt.Errorf("getting snapshot size: %w", err)
+	}
+
+	// Update sprite status if not leaving running
+	if !opts.LeaveRunning {
+		m.store.UpdateSpriteStatus(ctx, opts.SpriteName, store.StatusCheckpointed)
+	}
+
+	// Create snapshot record
+	now := time.Now()
+	snapshot := &store.Snapshot{
+		ID:         uuid.New().String(),
+		SpriteID:   s.ID,
+		SpriteName: s.Name,
+		Name:       opts.SnapshotName,
+		Path:       exportPath,
+		SizeBytes:  info.Size(),
+		CreatedAt:  now,
+	}
+
+	if err := m.store.CreateSnapshot(ctx, snapshot); err != nil {
+		// Clean up the checkpoint file on failure
+		os.Remove(exportPath)
+		return nil, fmt.Errorf("saving snapshot: %w", err)
+	}
+
+	return snapshot, nil
+}
+
+// RestoreSnapshot restores a sprite from a checkpoint snapshot
+func (m *Manager) RestoreSnapshot(ctx context.Context, opts SnapshotRestoreOptions) error {
+	s, err := m.store.GetSprite(ctx, opts.SpriteName)
+	if err != nil {
+		return err
+	}
+
+	snapshot, err := m.store.GetSnapshot(ctx, s.ID, opts.SnapshotName)
+	if err != nil {
+		return err
+	}
+
+	// Check if snapshot file exists
+	if _, err := os.Stat(snapshot.Path); os.IsNotExist(err) {
+		return fmt.Errorf("snapshot file not found: %s", snapshot.Path)
+	}
+
+	// Stop existing container if running
+	running, _ := m.podman.IsRunning(ctx, s.ID)
+	if running {
+		if err := m.podman.StopContainer(ctx, s.ID); err != nil {
+			return fmt.Errorf("stopping container: %w", err)
+		}
+	}
+
+	// Remove existing container
+	if err := m.podman.RemoveContainer(ctx, s.ID, true); err != nil {
+		// Container might not exist, continue anyway
+	}
+
+	// Restore from checkpoint
+	newContainerID, err := m.podman.Restore(ctx, podman.RestoreOptions{
+		ImportPath: snapshot.Path,
+		Name:       opts.SpriteName,
+	})
+	if err != nil {
+		return fmt.Errorf("restoring checkpoint: %w", err)
+	}
+
+	// Update sprite with new container ID and status
+	if _, err := m.store.ExecContext(ctx, `
+		UPDATE sprites SET id = ?, status = ?, updated_at = ? WHERE name = ?
+	`, newContainerID, store.StatusRunning, time.Now(), opts.SpriteName); err != nil {
+		return fmt.Errorf("updating sprite: %w", err)
+	}
+
+	// Update container IP
+	ip, err := m.podman.GetContainerIP(ctx, newContainerID)
+	if err == nil {
+		m.store.UpdateSpriteContainerIP(ctx, opts.SpriteName, ip)
+	}
+
+	return nil
+}
+
+// ListSnapshots returns all snapshots for a sprite
+func (m *Manager) ListSnapshots(ctx context.Context, spriteName string) ([]*store.Snapshot, error) {
+	s, err := m.store.GetSprite(ctx, spriteName)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.store.ListSnapshots(ctx, s.ID)
+}
+
+// DeleteSnapshot deletes a snapshot
+func (m *Manager) DeleteSnapshot(ctx context.Context, spriteName, snapshotName string) error {
+	s, err := m.store.GetSprite(ctx, spriteName)
+	if err != nil {
+		return err
+	}
+
+	snapshot, err := m.store.GetSnapshot(ctx, s.ID, snapshotName)
+	if err != nil {
+		return err
+	}
+
+	// Remove snapshot file
+	if err := os.Remove(snapshot.Path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("removing snapshot file: %w", err)
+	}
+
+	// Remove from database
+	return m.store.DeleteSnapshot(ctx, snapshot.ID)
+}
+
 // findAvailablePort finds the next available host port for sprite routing
 func (m *Manager) findAvailablePort(ctx context.Context) (int, error) {
 	sprites, err := m.store.ListSprites(ctx)

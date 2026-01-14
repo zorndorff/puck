@@ -205,6 +205,14 @@ func (d *Daemon) handleRequest(ctx context.Context, req *Request) Response {
 		return d.handleDestroy(ctx, req.Data)
 	case "destroy-all":
 		return d.handleDestroyAll(ctx, req.Data)
+	case "snapshot-create":
+		return d.handleSnapshotCreate(ctx, req.Data)
+	case "snapshot-restore":
+		return d.handleSnapshotRestore(ctx, req.Data)
+	case "snapshot-list":
+		return d.handleSnapshotList(ctx, req.Data)
+	case "snapshot-delete":
+		return d.handleSnapshotDelete(ctx, req.Data)
 	case "ping":
 		return Response{Success: true}
 	default:
@@ -350,6 +358,82 @@ func (d *Daemon) handleDestroyAll(ctx context.Context, data json.RawMessage) Res
 
 	respData, _ := json.Marshal(destroyed)
 	return Response{Success: true, Data: respData}
+}
+
+func (d *Daemon) handleSnapshotCreate(ctx context.Context, data json.RawMessage) Response {
+	var opts sprite.SnapshotCreateOptions
+	if err := json.Unmarshal(data, &opts); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	snapshot, err := d.manager.CreateSnapshot(ctx, opts)
+	if err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	// Remove route if not leaving running (sprite is checkpointed)
+	if !opts.LeaveRunning {
+		if err := d.router.RemoveRoute(opts.SpriteName); err != nil {
+			log.Warn("Failed to remove route for checkpointed sprite", "name", opts.SpriteName, "error", err)
+		}
+	}
+
+	respData, _ := json.Marshal(snapshot)
+	return Response{Success: true, Data: respData}
+}
+
+func (d *Daemon) handleSnapshotRestore(ctx context.Context, data json.RawMessage) Response {
+	var opts sprite.SnapshotRestoreOptions
+	if err := json.Unmarshal(data, &opts); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	if err := d.manager.RestoreSnapshot(ctx, opts); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	// Re-add route for restored sprite
+	s, err := d.manager.Get(ctx, opts.SpriteName)
+	if err == nil && s.HostPort > 0 {
+		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
+			log.Warn("Failed to add route for restored sprite", "name", s.Name, "error", err)
+		}
+	}
+
+	return Response{Success: true}
+}
+
+func (d *Daemon) handleSnapshotList(ctx context.Context, data json.RawMessage) Response {
+	var params struct {
+		SpriteName string `json:"sprite_name"`
+	}
+	if err := json.Unmarshal(data, &params); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	snapshots, err := d.manager.ListSnapshots(ctx, params.SpriteName)
+	if err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	respData, _ := json.Marshal(snapshots)
+	return Response{Success: true, Data: respData}
+}
+
+func (d *Daemon) handleSnapshotDelete(ctx context.Context, data json.RawMessage) Response {
+	var params struct {
+		SpriteName   string `json:"sprite_name"`
+		SnapshotName string `json:"snapshot_name"`
+	}
+	if err := json.Unmarshal(data, &params); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	if err := d.manager.DeleteSnapshot(ctx, params.SpriteName, params.SnapshotName); err != nil {
+		return Response{Success: false, Error: err.Error()}
+	}
+
+	return Response{Success: true}
 }
 
 // Manager returns the sprite manager (for console command which needs direct access)
