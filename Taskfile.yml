@@ -1,0 +1,89 @@
+version: '3'
+
+vars:
+  BINARY_NAME: puck
+  DAEMON_NAME: puckd
+  BUILD_TAGS: remote exclude_graphdriver_btrfs exclude_graphdriver_devicemapper containers_image_openpgp
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the puck CLI
+    cmds:
+      - go build -tags "{{.BUILD_TAGS}}" -o {{.BINARY_NAME}} ./cmd/puck
+
+  build-daemon:
+    desc: Build the puckd daemon
+    cmds:
+      - go build -tags "{{.BUILD_TAGS}}" -o {{.DAEMON_NAME}} ./cmd/puckd
+
+  build-all:
+    desc: Build both CLI and daemon
+    deps: [build, build-daemon]
+
+  install:
+    desc: Install puck to GOBIN
+    cmds:
+      - go install -tags "{{.BUILD_TAGS}}" ./cmd/puck
+      - go install -tags "{{.BUILD_TAGS}}" ./cmd/puckd
+
+  lint:
+    desc: Run linters
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+      - goimports -w .
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -tags "{{.BUILD_TAGS}}" ./...
+
+  test-verbose:
+    desc: Run tests with verbose output
+    cmds:
+      - go test -tags "{{.BUILD_TAGS}}" -v ./...
+
+  tidy:
+    desc: Tidy go.mod
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f {{.BINARY_NAME}} {{.DAEMON_NAME}}
+      - go clean
+
+  dev:
+    desc: Build and run daemon in dev mode
+    deps: [build-all]
+    cmds:
+      - ./{{.DAEMON_NAME}}
+
+  run-daemon:
+    desc: Run daemon in foreground
+    deps: [build]
+    cmds:
+      - ./{{.BINARY_NAME}} daemon start
+
+  check:
+    desc: Run all checks (fmt, lint, test)
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+
+  deps:
+    desc: Install development dependencies
+    cmds:
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install golang.org/x/tools/cmd/goimports@latest
