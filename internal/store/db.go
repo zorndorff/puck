@@ -6,9 +6,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
+
+// isDuplicateColumnError checks if the error is a "duplicate column" error
+func isDuplicateColumnError(err error) bool {
+	return strings.Contains(err.Error(), "duplicate column")
+}
 
 // DB wraps the SQLite database connection
 type DB struct {
@@ -62,12 +68,15 @@ func (db *DB) migrate() error {
 			status TEXT NOT NULL DEFAULT 'stopped',
 			volume_dir TEXT NOT NULL,
 			ports TEXT DEFAULT '[]',
+			host_port INTEGER DEFAULT 0,
 			container_ip TEXT DEFAULT '',
 			tailscale_ip TEXT DEFAULT '',
 			funnel_url TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		// Migration: add host_port column if not exists
+		`ALTER TABLE sprites ADD COLUMN host_port INTEGER DEFAULT 0`,
 		`CREATE TABLE IF NOT EXISTS snapshots (
 			id TEXT PRIMARY KEY,
 			sprite_id TEXT NOT NULL,
@@ -86,7 +95,10 @@ func (db *DB) migrate() error {
 
 	for _, m := range migrations {
 		if _, err := db.conn.Exec(m); err != nil {
-			return fmt.Errorf("executing migration: %w", err)
+			// Ignore "duplicate column" errors for ALTER TABLE migrations
+			if !isDuplicateColumnError(err) {
+				return fmt.Errorf("executing migration: %w", err)
+			}
 		}
 	}
 

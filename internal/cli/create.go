@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/sandwich-labs/puck/internal/daemon"
 	"github.com/sandwich-labs/puck/internal/sprite"
 )
@@ -57,7 +58,18 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Created sprite '%s' (accessible at http://%s.localhost)\n", s.Name, s.Name)
+	// Show access URLs
+	port := viper.GetInt("router_port")
+	if port == 0 {
+		port = 8080
+	}
+	tailnet := viper.GetString("tailnet")
+
+	fmt.Printf("Created sprite '%s'\n", s.Name)
+	fmt.Printf("  Local:  http://localhost:%d/%s\n", port, s.Name)
+	if tailnet != "" {
+		fmt.Printf("  Remote: https://puck.%s/%s\n", tailnet, s.Name)
+	}
 	return nil
 }
 

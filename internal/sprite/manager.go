@@ -36,11 +36,20 @@ func NewManager(cfg *config.Config, pc *podman.Client, db *store.DB) *Manager {
 	}
 }
 
+// BaseHostPort is the starting port for auto-assigned sprite ports
+const BaseHostPort = 9000
+
 // Create creates a new sprite
 func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite, error) {
 	// Use default image if not specified
 	if opts.Image == "" {
 		opts.Image = m.cfg.DefaultImage
+	}
+
+	// Find next available host port
+	hostPort, err := m.findAvailablePort(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("finding available port: %w", err)
 	}
 
 	// Create sprite record
@@ -54,6 +63,7 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 		UpdatedAt: now,
 		VolumeDir: filepath.Join(m.cfg.SpritesDir(), opts.Name),
 		Ports:     opts.Ports,
+		HostPort:  hostPort,
 	}
 
 	// Create volume directories
@@ -65,18 +75,21 @@ func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*store.Sprite
 		}
 	}
 
-	// Create container
+	// Create container with port mapping for HTTP routing
 	volumes := map[string]string{
 		filepath.Join(s.VolumeDir, "home"): "/home",
 		filepath.Join(s.VolumeDir, "etc"):  "/etc/puck",
 		filepath.Join(s.VolumeDir, "var"):  "/var/puck",
 	}
 
+	// Add the auto-assigned port mapping (host:container)
+	portMappings := append(opts.Ports, fmt.Sprintf("%d:80", hostPort))
+
 	containerID, err := m.podman.CreateContainer(ctx, podman.CreateContainerOptions{
 		Name:    opts.Name,
 		Image:   opts.Image,
 		Volumes: volumes,
-		Ports:   opts.Ports,
+		Ports:   portMappings,
 		Systemd: true,
 		Labels: map[string]string{
 			"puck.sprite.id": s.ID,
@@ -231,4 +244,29 @@ func (m *Manager) Console(ctx context.Context, name string, shell string) error 
 func (m *Manager) Exists(ctx context.Context, name string) bool {
 	_, err := m.store.GetSprite(ctx, name)
 	return err == nil
+}
+
+// findAvailablePort finds the next available host port for sprite routing
+func (m *Manager) findAvailablePort(ctx context.Context) (int, error) {
+	sprites, err := m.store.ListSprites(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// Find the highest used port
+	usedPorts := make(map[int]bool)
+	for _, s := range sprites {
+		if s.HostPort > 0 {
+			usedPorts[s.HostPort] = true
+		}
+	}
+
+	// Find first available port starting from BaseHostPort
+	for port := BaseHostPort; port < BaseHostPort+1000; port++ {
+		if !usedPorts[port] {
+			return port, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no available ports in range %d-%d", BaseHostPort, BaseHostPort+1000)
 }

@@ -16,6 +16,9 @@ type Config struct {
 	DefaultImage  string `mapstructure:"default_image"`
 	IdleTimeout   int    `mapstructure:"idle_timeout"` // minutes
 	DaemonSocket  string `mapstructure:"daemon_socket"`
+	RouterPort    int    `mapstructure:"router_port"`
+	RouterDomain  string `mapstructure:"router_domain"`
+	Tailnet       string `mapstructure:"tailnet"` // optional tailnet name for Tailscale mode
 }
 
 // Default returns the default configuration
@@ -26,12 +29,19 @@ func Default() *Config {
 		DefaultImage: "fedora:latest",
 		IdleTimeout:  15,
 		DaemonSocket: defaultDaemonSocket(),
+		RouterPort:   8080,
+		RouterDomain: "localhost",
+		Tailnet:      "", // empty = disabled
 	}
 }
 
 // Load loads configuration from viper and applies defaults
 func Load() (*Config, error) {
 	cfg := Default()
+
+	// Set up environment variable reading
+	viper.SetEnvPrefix("PUCK")
+	viper.AutomaticEnv()
 
 	// Override with viper values if set
 	if v := viper.GetString("data_dir"); v != "" {
@@ -48,6 +58,15 @@ func Load() (*Config, error) {
 	}
 	if v := viper.GetString("daemon_socket"); v != "" {
 		cfg.DaemonSocket = v
+	}
+	if v := viper.GetInt("router_port"); v > 0 {
+		cfg.RouterPort = v
+	}
+	if v := viper.GetString("router_domain"); v != "" {
+		cfg.RouterDomain = v
+	}
+	if v := viper.GetString("tailnet"); v != "" {
+		cfg.Tailnet = v
 	}
 
 	// Ensure data directory exists

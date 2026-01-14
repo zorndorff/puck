@@ -3,7 +3,10 @@ package podman
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
+	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v5/libpod/define"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/podman/v5/pkg/bindings/images"
@@ -57,6 +60,15 @@ func (c *Client) CreateContainer(ctx context.Context, opts CreateContainerOption
 			Destination: containerPath,
 			Options:     []string{"rw"},
 		})
+	}
+
+	// Configure port mappings
+	for _, portSpec := range opts.Ports {
+		pm, err := parsePortMapping(portSpec)
+		if err != nil {
+			continue // Skip invalid port specs
+		}
+		spec.PortMappings = append(spec.PortMappings, pm)
 	}
 
 	// Create the container
@@ -147,4 +159,28 @@ func (c *Client) IsRunning(ctx context.Context, nameOrID string) (bool, error) {
 func (c *Client) ContainerExists(ctx context.Context, nameOrID string) (bool, error) {
 	exists, err := containers.Exists(c.conn, nameOrID, nil)
 	return exists, err
+}
+
+// parsePortMapping parses a port spec like "8080:80" into a nettypes.PortMapping
+func parsePortMapping(portSpec string) (nettypes.PortMapping, error) {
+	parts := strings.Split(portSpec, ":")
+	if len(parts) != 2 {
+		return nettypes.PortMapping{}, fmt.Errorf("invalid port spec: %s", portSpec)
+	}
+
+	hostPort, err := strconv.ParseUint(parts[0], 10, 16)
+	if err != nil {
+		return nettypes.PortMapping{}, fmt.Errorf("invalid host port: %s", parts[0])
+	}
+
+	containerPort, err := strconv.ParseUint(parts[1], 10, 16)
+	if err != nil {
+		return nettypes.PortMapping{}, fmt.Errorf("invalid container port: %s", parts[1])
+	}
+
+	return nettypes.PortMapping{
+		HostPort:      uint16(hostPort),
+		ContainerPort: uint16(containerPort),
+		Protocol:      "tcp",
+	}, nil
 }

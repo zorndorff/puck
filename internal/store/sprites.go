@@ -29,6 +29,7 @@ type Sprite struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	VolumeDir   string    `json:"volume_dir"`
 	Ports       []string  `json:"ports,omitempty"`
+	HostPort    int       `json:"host_port,omitempty"`    // Auto-assigned port for HTTP routing
 	TailscaleIP string    `json:"tailscale_ip,omitempty"`
 	FunnelURL   string    `json:"funnel_url,omitempty"`
 	ContainerIP string    `json:"container_ip,omitempty"`
@@ -53,9 +54,9 @@ func (db *DB) CreateSprite(ctx context.Context, s *Sprite) error {
 	}
 
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO sprites (id, name, image, status, volume_dir, ports, container_ip, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, s.ID, s.Name, s.Image, s.Status, s.VolumeDir, string(portsJSON), s.ContainerIP, s.CreatedAt, s.UpdatedAt)
+		INSERT INTO sprites (id, name, image, status, volume_dir, ports, host_port, container_ip, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, s.ID, s.Name, s.Image, s.Status, s.VolumeDir, string(portsJSON), s.HostPort, s.ContainerIP, s.CreatedAt, s.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("inserting sprite: %w", err)
@@ -67,7 +68,7 @@ func (db *DB) CreateSprite(ctx context.Context, s *Sprite) error {
 // GetSprite retrieves a sprite by name
 func (db *DB) GetSprite(ctx context.Context, name string) (*Sprite, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, name, image, status, volume_dir, ports, container_ip, tailscale_ip, funnel_url, created_at, updated_at
+		SELECT id, name, image, status, volume_dir, ports, host_port, container_ip, tailscale_ip, funnel_url, created_at, updated_at
 		FROM sprites WHERE name = ?
 	`, name)
 
@@ -77,7 +78,7 @@ func (db *DB) GetSprite(ctx context.Context, name string) (*Sprite, error) {
 // GetSpriteByID retrieves a sprite by ID
 func (db *DB) GetSpriteByID(ctx context.Context, id string) (*Sprite, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, name, image, status, volume_dir, ports, container_ip, tailscale_ip, funnel_url, created_at, updated_at
+		SELECT id, name, image, status, volume_dir, ports, host_port, container_ip, tailscale_ip, funnel_url, created_at, updated_at
 		FROM sprites WHERE id = ?
 	`, id)
 
@@ -87,7 +88,7 @@ func (db *DB) GetSpriteByID(ctx context.Context, id string) (*Sprite, error) {
 // ListSprites returns all sprites
 func (db *DB) ListSprites(ctx context.Context) ([]*Sprite, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, name, image, status, volume_dir, ports, container_ip, tailscale_ip, funnel_url, created_at, updated_at
+		SELECT id, name, image, status, volume_dir, ports, host_port, container_ip, tailscale_ip, funnel_url, created_at, updated_at
 		FROM sprites ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -169,11 +170,12 @@ func (db *DB) DeleteSprite(ctx context.Context, name string) error {
 func scanSprite(row *sql.Row) (*Sprite, error) {
 	var s Sprite
 	var portsJSON string
+	var hostPort sql.NullInt64
 	var tailscaleIP, funnelURL, containerIP sql.NullString
 
 	err := row.Scan(
 		&s.ID, &s.Name, &s.Image, &s.Status, &s.VolumeDir,
-		&portsJSON, &containerIP, &tailscaleIP, &funnelURL,
+		&portsJSON, &hostPort, &containerIP, &tailscaleIP, &funnelURL,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -187,6 +189,7 @@ func scanSprite(row *sql.Row) (*Sprite, error) {
 		s.Ports = []string{}
 	}
 
+	s.HostPort = int(hostPort.Int64)
 	s.ContainerIP = containerIP.String
 	s.TailscaleIP = tailscaleIP.String
 	s.FunnelURL = funnelURL.String
@@ -198,11 +201,12 @@ func scanSprite(row *sql.Row) (*Sprite, error) {
 func scanSpriteRow(rows *sql.Rows) (*Sprite, error) {
 	var s Sprite
 	var portsJSON string
+	var hostPort sql.NullInt64
 	var tailscaleIP, funnelURL, containerIP sql.NullString
 
 	err := rows.Scan(
 		&s.ID, &s.Name, &s.Image, &s.Status, &s.VolumeDir,
-		&portsJSON, &containerIP, &tailscaleIP, &funnelURL,
+		&portsJSON, &hostPort, &containerIP, &tailscaleIP, &funnelURL,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -213,6 +217,7 @@ func scanSpriteRow(rows *sql.Rows) (*Sprite, error) {
 		s.Ports = []string{}
 	}
 
+	s.HostPort = int(hostPort.Int64)
 	s.ContainerIP = containerIP.String
 	s.TailscaleIP = tailscaleIP.String
 	s.FunnelURL = funnelURL.String

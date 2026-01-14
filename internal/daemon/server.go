@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/sandwich-labs/puck/internal/config"
+	"github.com/sandwich-labs/puck/internal/network"
 	"github.com/sandwich-labs/puck/internal/podman"
 	"github.com/sandwich-labs/puck/internal/sprite"
 	"github.com/sandwich-labs/puck/internal/store"
@@ -22,6 +23,7 @@ type Daemon struct {
 	podman  *podman.Client
 	store   *store.DB
 	manager *sprite.Manager
+	router  *network.Router
 
 	listener net.Listener
 	mu       sync.RWMutex
@@ -48,11 +50,18 @@ func New() (*Daemon, error) {
 
 	mgr := sprite.NewManager(cfg, pc, db)
 
+	// Create router for HTTP routing
+	router := network.NewRouter(cfg.RouterPort, cfg.RouterDomain)
+	if cfg.Tailnet != "" {
+		router.SetTailnet(cfg.Tailnet)
+	}
+
 	return &Daemon{
 		cfg:     cfg,
 		podman:  pc,
 		store:   db,
 		manager: mgr,
+		router:  router,
 	}, nil
 }
 
@@ -84,6 +93,17 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	log.Info("Daemon listening", "socket", d.cfg.DaemonSocket)
 
+	// Start HTTP router
+	if err := d.router.Start(); err != nil {
+		log.Warn("Failed to start HTTP router", "error", err)
+		// Continue without router - it's not critical
+	} else {
+		log.Info("HTTP router started", "port", d.cfg.RouterPort, "domain", d.cfg.RouterDomain)
+	}
+
+	// Sync existing sprites to router
+	d.syncRoutesToRouter(ctx)
+
 	// Accept connections
 	for {
 		select {
@@ -111,11 +131,32 @@ func (d *Daemon) Shutdown() {
 	defer d.mu.Unlock()
 
 	d.running = false
+	if d.router != nil {
+		d.router.Stop()
+	}
 	if d.listener != nil {
 		d.listener.Close()
 	}
 	if d.store != nil {
 		d.store.Close()
+	}
+}
+
+// syncRoutesToRouter adds routes for all running sprites
+func (d *Daemon) syncRoutesToRouter(ctx context.Context) {
+	sprites, err := d.manager.List(ctx)
+	if err != nil {
+		log.Warn("Failed to list sprites for router sync", "error", err)
+		return
+	}
+
+	for _, s := range sprites {
+		if s.Status == store.StatusRunning && s.HostPort > 0 {
+			// Route to localhost with the mapped host port
+			if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
+				log.Warn("Failed to add route", "sprite", s.Name, "error", err)
+			}
+		}
 	}
 }
 
@@ -180,6 +221,13 @@ func (d *Daemon) handleCreate(ctx context.Context, data json.RawMessage) Respons
 		return Response{Success: false, Error: err.Error()}
 	}
 
+	// Add route for the new sprite using its host port
+	if s.HostPort > 0 {
+		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
+			log.Warn("Failed to add route for sprite", "name", s.Name, "error", err)
+		}
+	}
+
 	respData, _ := json.Marshal(s)
 	return Response{Success: true, Data: respData}
 }
@@ -223,6 +271,14 @@ func (d *Daemon) handleStart(ctx context.Context, data json.RawMessage) Response
 		return Response{Success: false, Error: err.Error()}
 	}
 
+	// Add route for started sprite using its host port
+	s, err := d.manager.Get(ctx, params.Name)
+	if err == nil && s.HostPort > 0 {
+		if err := d.router.AddRoute(s.Name, "127.0.0.1", s.HostPort); err != nil {
+			log.Warn("Failed to add route for sprite", "name", s.Name, "error", err)
+		}
+	}
+
 	return Response{Success: true}
 }
 
@@ -236,6 +292,11 @@ func (d *Daemon) handleStop(ctx context.Context, data json.RawMessage) Response 
 
 	if err := d.manager.Stop(ctx, params.Name); err != nil {
 		return Response{Success: false, Error: err.Error()}
+	}
+
+	// Remove route for stopped sprite
+	if err := d.router.RemoveRoute(params.Name); err != nil {
+		log.Warn("Failed to remove route for sprite", "name", params.Name, "error", err)
 	}
 
 	return Response{Success: true}
@@ -252,6 +313,11 @@ func (d *Daemon) handleDestroy(ctx context.Context, data json.RawMessage) Respon
 
 	if err := d.manager.Destroy(ctx, params.Name, params.Force); err != nil {
 		return Response{Success: false, Error: err.Error()}
+	}
+
+	// Remove route for destroyed sprite
+	if err := d.router.RemoveRoute(params.Name); err != nil {
+		log.Warn("Failed to remove route for sprite", "name", params.Name, "error", err)
 	}
 
 	return Response{Success: true}
