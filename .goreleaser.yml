@@ -55,6 +55,7 @@ archives:
     files:
       - README.md
       - LICENSE*
+      - init/*
 
 checksum:
   name_template: 'checksums.txt'

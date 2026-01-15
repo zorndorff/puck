@@ -1,0 +1,20 @@
+[Unit]
+Description=Puck Daemon - Container Management Service
+Documentation=https://github.com/sandwich-labs/puck
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/puckd
+Restart=on-failure
+RestartSec=5s
+Environment="PUCK_DATA_DIR=%h/.local/share/puck"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=puckd
+
+[Install]
+WantedBy=default.target
