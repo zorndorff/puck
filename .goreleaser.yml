@@ -1,0 +1,78 @@
+version: 2
+
+project_name: puck
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: puck
+    main: ./cmd/puck
+    binary: puck
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -tags=remote,exclude_graphdriver_btrfs,exclude_graphdriver_devicemapper,containers_image_openpgp
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: puckd
+    main: ./cmd/puckd
+    binary: puckd
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -tags=remote,exclude_graphdriver_btrfs,exclude_graphdriver_devicemapper,containers_image_openpgp
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE*
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: sandwich-labs
+    name: puck
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} v{{.Version}}"
