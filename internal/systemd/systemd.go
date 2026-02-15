@@ -16,8 +16,9 @@ const binaryName = "puckd"
 const serviceTemplate = `[Unit]
 Description=Puck Daemon - Container Management Service
 Documentation=https://github.com/sandwich-labs/puck
-After=network-online.target
+After=network-online.target podman.socket
 Wants=network-online.target
+Requires=podman.socket
 
 [Service]
 Type=simple
